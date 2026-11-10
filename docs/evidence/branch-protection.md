@@ -44,5 +44,7 @@ curl -s https://api.github.com/repos/HuynhDucThinh/LeeTKOB-AWAD/branches/main | 
 
 ## File bằng chứng đi kèm
 
+- Ảnh chụp trang cấu hình rule của `main` (Settings → Branches → rule `main`, URL `.../settings/branch_protection_rules/86092085`): ![Branch protection rule của main](branch-protection.png)
+  Ảnh cho thấy: *Require status checks to pass before merging*, *Require branches to be up to date before merging*, 5 check bắt buộc (`lint`, `format-check`, `typecheck`, `test`, `secrets`, nguồn GitHub Actions) và **Do not allow bypassing the above settings**. Các mục không nằm trong khung ảnh (*Require a pull request before merging*, force push và deletions bị tắt) được xác nhận bằng file JSON bên dưới.
 - Cấu hình JSON xuất từ GitHub REST API: [`main-protection.json`](main-protection.json)
 - Nhật ký thực nghiệm cổng kiểm tra chặn merge: [`gate-experiments.json`](gate-experiments.json)
