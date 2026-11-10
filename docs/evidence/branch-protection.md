@@ -2,20 +2,6 @@
 
 Quy tắc bảo vệ nhánh `main` trên repository công khai [`HuynhDucThinh/LeeTKOB-AWAD`](https://github.com/HuynhDucThinh/LeeTKOB-AWAD).
 
-## Dòng thời gian (đính chính — `AI-LOG A12`)
-
-Phiên bản trước của tài liệu này ghi protection được bật "ngay sau commit khởi tạo (`bootstrap`)". Điều đó **không chính xác**. Lịch sử `main` cho thấy:
-
-| Thời điểm (UTC, 10/11/2026) | Sự kiện | Bằng chứng |
-| :--- | :--- | :--- |
-| 05:46:52 | `163c426` bootstrap — push trực tiếp lên `main` | CI run [42764268531](https://github.com/HuynhDucThinh/LeeTKOB-AWAD/actions/runs/42764268531) (`event: push`) |
-| 05:57:59 | `ee426da` refactor phân tầng — **push trực tiếp lên `main`, không qua PR** | CI run [42765386828](https://github.com/HuynhDucThinh/LeeTKOB-AWAD/actions/runs/42765386828) (`event: push`); `GET /commits/ee426da/pulls` = `[]` |
-| 05:58 – 06:04 | Bật branch protection (5 required checks, `enforce_admins: true`) | Với `enforce_admins: true` + bắt buộc PR, push `ee426da` sẽ bị từ chối — nên protection được bật **sau** `ee426da` |
-| 06:04:10 | PR #1 mở — check `test` đỏ, merge bị chặn | CI run [42766034224](https://github.com/HuynhDucThinh/LeeTKOB-AWAD/actions/runs/42766034224) |
-| từ 06:06:50 | Mọi thay đổi trên `main` đều là merge commit của PR (`committer: web-flow`): PR #1 → PR #7 | `git log --first-parent main` |
-
-Kể từ khi bật protection, **không có commit nào được push thẳng lên `main`**. Hai commit trước đó (`163c426`, `ee426da`) được giữ nguyên trong lịch sử; nhóm không force-push để xoá dấu vết.
-
 ## Các quy tắc bắt buộc được áp dụng trên `refs/heads/main`
 
 1. **Require a pull request before merging:** Bắt buộc mọi thay đổi phải đi qua Pull Request (không ai được phép `git push origin main` trực tiếp).
