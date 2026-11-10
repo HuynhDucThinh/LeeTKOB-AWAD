@@ -11,26 +11,45 @@
     {
       "id": "A06",
       "pullRequest": "https://github.com/HuynhDucThinh/LeeTKOB-AWAD/pull/1",
-      "description": "Deliberate replay status regression: return HTTP 201 instead of 200 on repeated publish",
+      "branch": "exp/replay-status-break",
+      "description": "Deliberate replay status regression: return HTTP 201 instead of 200 on repeated publish in PublishController.java",
+      "redCommit": "ffd17cf29d81a48386057c59d36914e79c8c513f",
+      "redRunUrl": "https://github.com/HuynhDucThinh/LeeTKOB-AWAD/actions/runs/42766034224",
       "failedCheck": "test",
       "failedTests": [
         "repeatedPostIs200AndByteIdenticalAcrossColleagueAndClock",
         "concurrentRequestsConvergeOnSinglePublicationAndAudit"
       ],
+      "blockedMergeResponse": {
+        "status": 405,
+        "message": "Required status check \"test\" is failing."
+      },
+      "greenFixCommit": "53e8b6dc2ca1e593547dfe95ac5a84c137109791",
+      "greenRunUrl": "https://github.com/HuynhDucThinh/LeeTKOB-AWAD/actions/runs/42766200407",
+      "mergeCommit": "0c35d1b",
       "repairedInSamePr": true
     },
     {
       "id": "A07",
       "pullRequest": "https://github.com/HuynhDucThinh/LeeTKOB-AWAD/pull/2",
-      "description": "Deliberate class ownership regression: omit ta_id predicate in ownedLab query",
+      "branch": "exp/ownership-break",
+      "description": "Deliberate class ownership contract break: omit ta_classes join and ta_id predicate in LabPublishRepository.findOwnedLab",
+      "redCommit": "6605bfe5924ac6b79c123b3c1812e19248675a9d",
+      "redRunUrl": "https://github.com/HuynhDucThinh/LeeTKOB-AWAD/actions/runs/42766403260",
       "failedCheck": "test",
       "failedTests": [
         "foreignTaAndMissingLabReturnIdentical404BeforeBodyParse",
         "publishedReceiptDoesNotBypassRevokedOrForeignOwnership",
         "ownershipIsRecheckedInsideWriteTransaction"
       ],
+      "blockedMergeResponse": {
+        "status": 405,
+        "message": "Required status check \"test\" is failing."
+      },
+      "greenFixCommit": "58d8bcb3c590318c1ea4645651d7a35a8a8621c6",
+      "greenRunUrl": "https://github.com/HuynhDucThinh/LeeTKOB-AWAD/actions/runs/42766615499",
+      "mergeCommit": "2bfc345",
       "repairedInSamePr": true
     }
   ]
 }
-
