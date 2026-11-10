@@ -1,0 +1,19 @@
+{
+  "name": "leetkob-pa2",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LeeTKOB PA#2 — Harness, Quality Gate & Transactional Lab Publishing Contract (Spring Boot 3 + Java 21)",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "start": "node scripts/mvnw.mjs spring-boot:run",
+    "lint": "node scripts/mvnw.mjs -B -ntp checkstyle:check",
+    "format:check": "node scripts/mvnw.mjs -B -ntp spotless:check",
+    "format": "node scripts/mvnw.mjs -B -ntp spotless:apply",
+    "typecheck": "node scripts/mvnw.mjs -B -ntp test-compile",
+    "test": "node scripts/mvnw.mjs -B -ntp test",
+    "sec:scan": "node scripts/secret-scan.mjs",
+    "check": "npm run sec:scan && npm run lint && npm run format:check && npm run typecheck && npm test"
+  }
+}

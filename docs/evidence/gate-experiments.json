@@ -1,0 +1,36 @@
+{
+  "repository": "https://github.com/HuynhDucThinh/LeeTKOB-AWAD",
+  "requiredChecks": [
+    "lint",
+    "format-check",
+    "typecheck",
+    "test",
+    "secrets"
+  ],
+  "experiments": [
+    {
+      "id": "A06",
+      "pullRequest": "https://github.com/HuynhDucThinh/LeeTKOB-AWAD/pull/1",
+      "description": "Deliberate replay status regression: return HTTP 201 instead of 200 on repeated publish",
+      "failedCheck": "test",
+      "failedTests": [
+        "repeatedPostIs200AndByteIdenticalAcrossColleagueAndClock",
+        "concurrentRequestsConvergeOnSinglePublicationAndAudit"
+      ],
+      "repairedInSamePr": true
+    },
+    {
+      "id": "A07",
+      "pullRequest": "https://github.com/HuynhDucThinh/LeeTKOB-AWAD/pull/2",
+      "description": "Deliberate class ownership regression: omit ta_id predicate in ownedLab query",
+      "failedCheck": "test",
+      "failedTests": [
+        "foreignTaAndMissingLabReturnIdentical404BeforeBodyParse",
+        "publishedReceiptDoesNotBypassRevokedOrForeignOwnership",
+        "ownershipIsRecheckedInsideWriteTransaction"
+      ],
+      "repairedInSamePr": true
+    }
+  ]
+}
+

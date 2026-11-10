@@ -1,0 +1,39 @@
+# Biến môi trường & Bí mật (TUYỆT ĐỐI KHÔNG COMMIT .env)
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+
+# Dữ liệu SQLite / H2 cục bộ
+data/
+*.db
+*.db-shm
+*.db-wal
+*.mv.db
+*.trace.db
+
+# Thư mục build của Maven / Java & Node
+backend/target/
+backend/.mvn/timing.properties
+backend/hs_err_pid*
+node_modules/
+npm-debug.log*
+*.class
+*.log
+*.jar
+
+# IDE & Hệ điều hành
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Tài liệu bài giảng tham khảo cục bộ (không thuộc mã nguồn nộp bài)
+docs/*Copy*.md
+docs/*brief*.md
+docs/*rubric*.md
+docs/PA#2*
+docs/leetkob-awad-2026-main/
+docs/LeeTKOB-main/
