@@ -107,8 +107,7 @@ public class PublishController extends OncePerRequestFilter {
       validateAndReadBody(request);
 
       PublishResult result = publishService.publish(labId, principal, clock.instant());
-      response.setStatus(
-          result.replayed() ? HttpServletResponse.SC_CREATED : HttpServletResponse.SC_OK);
+      response.setStatus(HttpServletResponse.SC_OK);
       response.setHeader("Cache-Control", "no-store");
       response.setHeader("X-Content-Type-Options", "nosniff");
       response.setHeader("Content-Type", "application/json");
