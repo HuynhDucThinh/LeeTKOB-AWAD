@@ -22,12 +22,10 @@ public class LabPublishRepository {
             """
             SELECT l.id, l.deadline
             FROM labs l
-            JOIN ta_classes t ON t.class_id = l.class_id
-            WHERE l.id = ? AND t.ta_id = ?
+            WHERE l.id = ?
             """,
             (rs, rowNum) -> new LabRecord(rs.getInt("id"), rs.getString("deadline")),
-            labId,
-            taId);
+            labId);
     return rows.stream().findFirst();
   }
 
