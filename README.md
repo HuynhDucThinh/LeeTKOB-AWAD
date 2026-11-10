@@ -54,12 +54,12 @@ Mỗi lệnh đều trả về mã thoát khác `0` ngay khi phát hiện lỗi.
 
 ## 2. Chạy Thử nghiệm Máy chủ HTTP Cục bộ (Local HTTP Demonstration)
 
-Chỉ khởi chạy máy chủ độc lập trên máy phát triển đáng tin cậy. Ở chế độ demo (`leetkob.auth.mode=demo`), bộ xác thực `DemoAuthAdapter` yêu cầu biến môi trường `DEMO_AUTH_TOKEN` có độ dài tối thiểu 32 ký tự và ánh xạ duy nhất token đó tới tài khoản trợ giảng mẫu `ta-demo` (các nhãn định danh dùng trong bộ test tự động hoàn toàn bị vô hiệu hóa ở chế độ này).
+Chỉ khởi chạy máy chủ độc lập trên máy phát triển đáng tin cậy. Xác thực luôn **fail-closed** (`AI-LOG A09`): máy chủ chỉ dùng `DemoAuthAdapter`, bắt buộc biến môi trường `DEMO_AUTH_TOKEN` dài tối thiểu 32 ký tự (thiếu hoặc yếu thì **không khởi động**) và ánh xạ duy nhất token đó tới trợ giảng mẫu `ta-demo`. Các nhãn định danh của bộ test (`own`, `admin`, …) chỉ tồn tại trong `src/test`, không bao giờ xác thực được trên máy chủ thật.
 
 Trên PowerShell:
 
 ```powershell
-$env:DEMO_AUTH_TOKEN = "demo-secret-token-with-at-least-32-chars"
+$env:DEMO_AUTH_TOKEN = "<tự-sinh-chuỗi-ngẫu-nhiên-tối-thiểu-32-ký-tự>"
 npm start
 ```
 
@@ -82,10 +82,12 @@ Tất cả các biến cấu hình của ứng dụng đều được khai báo 
 
 | Biến môi trường | Giá trị mặc định khi vắng mặt | Ý nghĩa |
 | :--- | :--- | :--- |
-| `SERVER_HOST` | `127.0.0.1` | Địa chỉ lắng nghe cục bộ của máy chủ HTTP |
-| `SERVER_PORT` | `8080` | Cổng lắng nghe HTTP (`1`–`65535`) |
-| `DATABASE_URL` | `jdbc:h2:mem:leetkob;MODE=PostgreSQL...` | Chuỗi kết nối cơ sở dữ liệu SQL |
-| `DEMO_AUTH_TOKEN` | Không có (từ chối khởi tạo ở chế độ demo) | Token bí mật tối thiểu 32 ký tự cho trợ giảng demo |
+| `SERVER_HOST` | `127.0.0.1` | Địa chỉ lắng nghe (`server.address` trong `application.properties`) |
+| `SERVER_PORT` | `8080` | Cổng lắng nghe HTTP (`server.port`) |
+| `DATABASE_URL` | `jdbc:h2:mem:leetkob;MODE=PostgreSQL...` | Chuỗi kết nối JDBC (`spring.datasource.url`) |
+| `DEMO_AUTH_TOKEN` | Không có — **thiếu hoặc < 32 ký tự thì máy chủ không khởi động** | Token bí mật duy nhất của trợ giảng demo (`AppConfig`) |
+
+Mỗi biến trên đều được đọc thật trong [`application.properties`](backend/src/main/resources/application.properties) hoặc [`AppConfig.java`](backend/src/main/java/vn/edu/hcmus/leetkob/config/AppConfig.java); không có biến nào khác.
 
 **Nhà cung cấp và mô hình LLM đang kích hoạt ở `PA#2`: Không có (`none`). Hạn mức chi tiêu mô hình (Model Spending Cap): USD 0 / bài lab và USD 0 tổng cộng. Chi phí mô hình thực tế mỗi bài lab: USD 0.**  
 Ở cột mốc `PA#2`, không có khóa API của bất kỳ nhà cung cấp mô hình nào được cấp phát, không có biến môi trường nào nhận khóa mô hình hoạt động, và không có bài kiểm thử nào gọi ra dịch vụ LLM bên ngoài. Trước khi kích hoạt tính năng kiểm tra ràng buộc bằng LLM ở `PA#3`, nhóm bắt buộc phải phê duyệt lựa chọn mô hình, thiết lập giới hạn chi phí cứng cho từng bài lab và cài đặt hạn mức chi tiêu (spending cap) trên tài khoản nhà cung cấp.
