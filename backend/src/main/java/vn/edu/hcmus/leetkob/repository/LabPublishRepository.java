@@ -16,6 +16,14 @@ public class LabPublishRepository {
     this.jdbcTemplate = jdbcTemplate;
   }
 
+  /**
+   * Takes a row lock on the lab for the rest of the current transaction. Concurrent publishes of
+   * the same lab are serialised by the database; publishes of other labs are not affected.
+   */
+  public void lockLabRow(int labId) {
+    jdbcTemplate.queryForList("SELECT id FROM labs WHERE id = ? FOR UPDATE", labId);
+  }
+
   public Optional<LabRecord> findOwnedLab(int labId, String taId) {
     List<LabRecord> rows =
         jdbcTemplate.query(

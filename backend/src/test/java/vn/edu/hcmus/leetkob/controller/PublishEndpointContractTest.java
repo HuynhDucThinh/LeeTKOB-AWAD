@@ -3,6 +3,7 @@ package vn.edu.hcmus.leetkob.controller;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doAnswer;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,6 +12,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.Statement;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -25,6 +28,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,10 +38,11 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import vn.edu.hcmus.leetkob.dto.PublicationReceipt;
+import vn.edu.hcmus.leetkob.repository.LabPublishRepository;
 import vn.edu.hcmus.leetkob.security.AuthResolver;
 import vn.edu.hcmus.leetkob.security.Principal;
-import vn.edu.hcmus.leetkob.service.PublishService;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class PublishEndpointContractTest {
@@ -93,7 +98,9 @@ class PublishEndpointContractTest {
 
   @Autowired private JdbcTemplate jdbcTemplate;
 
-  @Autowired private PublishService publishService;
+  @Autowired private DataSource dataSource;
+
+  @MockitoSpyBean private LabPublishRepository labPublishRepository;
 
   @Autowired private ObjectMapper objectMapper;
 
@@ -110,8 +117,6 @@ class PublishEndpointContractTest {
           }
           return Optional.ofNullable(IDENTITIES.get(header.substring("Bearer ".length())));
         });
-    publishService.setBeforeTransactionalAccessHook(null);
-    publishService.setSimulateAuditFailure(false);
 
     jdbcTemplate.update("DELETE FROM publication_audit");
     jdbcTemplate.update("DELETE FROM published_marks");
@@ -310,12 +315,25 @@ class PublishEndpointContractTest {
     Integer auditCount =
         jdbcTemplate.queryForObject("SELECT COUNT(*) FROM publication_audit", Integer.class);
     assertEquals(1, auditCount);
+    assertEquals(
+        1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM publications", Integer.class));
+    assertEquals(
+        2, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM published_marks", Integer.class));
   }
 
   @Test
   void ownershipIsRecheckedInsideWriteTransaction() throws Exception {
-    publishService.setBeforeTransactionalAccessHook(
-        () -> jdbcTemplate.update("DELETE FROM ta_classes WHERE ta_id = 'ta-own'"));
+    // The first lookup (pre-body check) runs for real and then the assignment is revoked, so the
+    // second lookup inside the write transaction must no longer see it.
+    doAnswer(
+            invocation -> {
+              Object real = invocation.callRealMethod();
+              jdbcTemplate.update("DELETE FROM ta_classes WHERE ta_id = 'ta-own'");
+              return real;
+            })
+        .doCallRealMethod()
+        .when(labPublishRepository)
+        .findOwnedLab(1, "ta-own");
 
     assertProblem(postPublish("/v1/labs/1/publish", "own", "{}"), 404, "not-found", "Not found");
     assertNoPublication();
@@ -541,46 +559,57 @@ class PublishEndpointContractTest {
 
   @Test
   void databaseLockContentionReturns503WithRetryAfter() throws Exception {
-    ExecutorService lockHolder = Executors.newSingleThreadExecutor();
-    try {
-      lockHolder
-          .submit(
-              () -> {
-                publishService.getWriteLock().lock();
-                return null;
-              })
-          .get();
+    // Another transaction holds the database row lock on lab 1 for longer than LOCK_TIMEOUT.
+    try (Connection holder = dataSource.getConnection()) {
+      holder.setAutoCommit(false);
+      try (Statement lock = holder.createStatement()) {
+        lock.executeQuery("SELECT id FROM labs WHERE id = 1 FOR UPDATE").close();
+      }
 
       HttpResponse<String> contended = postPublish("/v1/labs/1/publish", "own", "{}");
       assertProblem(contended, 503, "publication-unavailable", "Publication unavailable");
       assertEquals("1", contended.headers().firstValue("retry-after").orElse(""));
       assertNoPublication();
 
-      lockHolder
-          .submit(
-              () -> {
-                publishService.getWriteLock().unlock();
-                return null;
-              })
-          .get();
-    } finally {
-      lockHolder.shutdownNow();
+      holder.rollback();
     }
 
     assertEquals(200, postPublish("/v1/labs/1/publish", "own", "{}").statusCode());
   }
 
   @Test
+  void lockOnOneLabDoesNotBlockPublishingAnotherLab() throws Exception {
+    try (Connection holder = dataSource.getConnection()) {
+      holder.setAutoCommit(false);
+      try (Statement lock = holder.createStatement()) {
+        lock.executeQuery("SELECT id FROM labs WHERE id = 2 FOR UPDATE").close();
+      }
+
+      assertEquals(200, postPublish("/v1/labs/1/publish", "own", "{}").statusCode());
+
+      holder.rollback();
+    }
+    assertEquals(
+        1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM publications", Integer.class));
+  }
+
+  @Test
   void auditFailureRollsBackPublicationAndMarksAtomically() throws Exception {
-    publishService.setSimulateAuditFailure(true);
+    // A real database failure on the third insert of the transaction.
+    jdbcTemplate.execute(
+        "ALTER TABLE publication_audit ADD CONSTRAINT test_force_audit_failure"
+            + " CHECK (actor_id <> 'ta-own')");
+    try {
+      Map<String, Object> problem =
+          assertProblem(
+              postPublish("/v1/labs/1/publish", "own", "{}"), 500, "internal", "Internal error");
+      assertEquals("The request could not be completed.", problem.get("detail"));
+      assertNoPublication();
+    } finally {
+      jdbcTemplate.execute(
+          "ALTER TABLE publication_audit DROP CONSTRAINT test_force_audit_failure");
+    }
 
-    Map<String, Object> problem =
-        assertProblem(
-            postPublish("/v1/labs/1/publish", "own", "{}"), 500, "internal", "Internal error");
-    assertEquals("The request could not be completed.", problem.get("detail"));
-    assertNoPublication();
-
-    publishService.setSimulateAuditFailure(false);
     assertEquals(200, postPublish("/v1/labs/1/publish", "own", "{}").statusCode());
   }
 
