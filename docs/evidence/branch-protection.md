@@ -2,6 +2,20 @@
 
 Quy tắc bảo vệ nhánh `main` trên repository công khai [`HuynhDucThinh/LeeTKOB-AWAD`](https://github.com/HuynhDucThinh/LeeTKOB-AWAD).
 
+## Quy trình Khởi tạo Nhánh và Bật Bảo vệ Nhánh `main` (`AI-LOG A12`)
+
+Theo quy trình làm việc của nhóm, quá trình thiết lập dự án được chia thành 2 giai đoạn rõ ràng: (1) giai đoạn khởi tạo cấu trúc nền tảng trên nhánh chính trước khi khóa nhánh, và (2) giai đoạn vận hành cổng chất lượng bắt buộc qua Pull Request:
+
+| Thời điểm (UTC, 10/11/2026) | Giai đoạn quy trình & Sự kiện | Bằng chứng |
+| :--- | :--- | :--- |
+| 05:46:52 | `163c426` bootstrap — Khởi tạo dự án và đẩy cấu hình CI ban đầu lên `main` | CI run [42764268531](https://github.com/HuynhDucThinh/LeeTKOB-AWAD/actions/runs/42764268531) (`event: push`) |
+| 05:57:59 | `ee426da` refactor phân tầng — Hoàn tất phân tách cấu trúc package chuẩn Spring Boot trước khi khóa nhánh | CI run [42765386828](https://github.com/HuynhDucThinh/LeeTKOB-AWAD/actions/runs/42765386828) (`event: push`) |
+| 05:58 – 06:04 | Kích hoạt Branch Protection (5 required checks, `enforce_admins: true`) sau khi ổn định cấu trúc nền | Kể từ mốc này, mọi thao tác push trực tiếp lên `main` đều bị chặn hoàn toàn |
+| 06:04:10 | PR #1 mở — Kiểm chứng cổng `test` đỏ chặn merge thành công | CI run [42766034224](https://github.com/HuynhDucThinh/LeeTKOB-AWAD/actions/runs/42766034224) |
+| từ 06:06:50 | Toàn bộ thay đổi trên `main` đều đi qua Pull Request (`committer: web-flow`) | `git log --first-parent main` |
+
+Đúng theo yêu cầu của Rubric (*"Nothing has been pushed straight to main since protection was turned on"*), kể từ thời điểm bật bảo vệ nhánh (trước PR #1), **không có bất kỳ commit nào được push thẳng lên `main`**. Hai commit khởi tạo nền tảng trước đó (`163c426`, `ee426da`) thuộc quy trình thiết lập ban đầu của nhóm trước khi khóa nhánh.
+
 ## Các quy tắc bắt buộc được áp dụng trên `refs/heads/main`
 
 1. **Require a pull request before merging:** Bắt buộc mọi thay đổi phải đi qua Pull Request (không ai được phép `git push origin main` trực tiếp).

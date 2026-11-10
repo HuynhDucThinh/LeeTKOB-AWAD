@@ -177,6 +177,58 @@ Idempotent-Replayed: true
 
 ---
 
+### 4.4. Ví dụ phản hồi `401`, `404`, `405` và độ ưu tiên giữa chúng
+
+Các kiểm tra chạy theo đúng thứ tự ở Mục 4.2, nên client luôn nhận **lỗi đầu tiên** trong thứ tự đó:
+
+| Tình huống | Kết quả | Giải thích thứ tự |
+| :--- | :-: | :--- |
+| `GET /v1/labs/1/publish`, **không có token** | `405 method-not-allowed` | Bước 1 (phương thức) chạy trước bước 2 (xác thực) |
+| `POST /v1/labs/999/publish` (lab không tồn tại), **không có token** | `401 authentication-required` | Bước 2 chạy trước bước 3 (tồn tại + quyền sở hữu), nên người chưa đăng nhập không dò được lab nào tồn tại |
+| `POST` bởi `student`/`admin` lên lab của một lớp bất kỳ | `403 forbidden` | Bước 2 (vai trò) chạy trước bước 3 |
+| `POST` bởi TA lớp khác, hoặc lab không tồn tại | `404 not-found` (cùng nội dung) | Bước 3 |
+
+```http
+HTTP/1.1 401 Unauthorized
+Content-Type: application/problem+json
+Cache-Control: no-store
+X-Content-Type-Options: nosniff
+WWW-Authenticate: Bearer realm="leetkob"
+
+{
+  "type": "https://leetkob.example/problems/authentication-required",
+  "title": "Authentication required",
+  "status": 401,
+  "detail": "Valid Bearer authentication is required.",
+  "instance": "/v1/labs/999/publish"
+}
+```
+
+```http
+HTTP/1.1 404 Not Found
+Content-Type: application/problem+json
+Cache-Control: no-store
+X-Content-Type-Options: nosniff
+
+{
+  "type": "https://leetkob.example/problems/not-found",
+  "title": "Not found",
+  "status": 404,
+  "detail": "The requested resource was not found.",
+  "instance": "/v1/labs/1/publish"
+}
+```
+
+Trường `detail` của từng `type` là chuỗi cố định do máy chủ chọn; client chỉ được dựa vào `type` và `status`, không phân tích `detail`.
+
+### 4.5. Điều gì thay đổi sau khi publish (và điều gì nằm ngoài endpoint này)
+
+- Sau lần công bố thành công đầu tiên, bản chụp điểm trong `published_marks` là **bất biến**: sửa điểm hay trạng thái chấm ở `counted_submissions` sau đó **không** làm đổi biên nhận hay bản chụp (đã có test `repeatedPostIs200AndByteIdenticalAcrossColleagueAndClock`).
+- Endpoint này **không** có thao tác hoàn tác (un-publish) và không trả điểm từng sinh viên; chỉ trả biên nhận gồm số bài nộp đã chụp.
+- Việc sinh viên xem điểm và phúc khảo (`POST /submissions/{id}/appeals`) thuộc endpoint khác ở cột mốc sau (`PA#5`); hợp đồng này chỉ bảo đảm rằng sau publish, trạng thái lab là "đã công bố" và không đổi.
+
+---
+
 ## 5. Chính sách Phiên bản & Thay đổi (Versions and Change Policy)
 
 - Trong phạm vi tiền tố `/v1`, chỉ cho phép các thay đổi **tương thích cộng thêm (additive changes)**: bổ sung các trường tùy chọn trong request được bỏ qua, bổ sung trường thông tin mới trong response hoặc thêm endpoint mới.
