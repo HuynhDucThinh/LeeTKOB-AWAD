@@ -40,6 +40,6 @@ npm test              # Chạy toàn bộ Unit Tests và HTTP Contract Tests (JU
 - **Không bao giờ** sửa đổi bài test hiện có, dữ liệu đánh giá (`eval/`), hoặc nhãn đáp án (`labels.jsonl`) để ép một bước kiểm tra đang đỏ thành xanh. Nếu hợp đồng thực sự thay đổi, phải cập nhật `docs/contract/publish-lab.md` và giải trình trong một commit/PR độc lập.
 - **Không bao giờ** bỏ qua bước kiểm tra quyền sở hữu lớp (`ta_classes`) hoặc coi việc đã xác thực (`401`) là đủ quyền truy cập bài lab của lớp khác (truy vết từ sự cố `AI-LOG A07`).
 - **Không bao giờ** dùng biến cờ trong bộ nhớ (in-memory flag) để xử lý Idempotency hoặc trả về mã `201 Created` / tạo mới timestamp khi gọi lặp lại (replay) trên bài lab đã công bố (truy vết từ sự cố `AI-LOG A06`).
-- **Không bao giờ** thêm `|| true`, `continue-on-error: true`, `--passWithNoTests`, `catch {}` rỗng trong script kiểm tra, hoặc push trực tiếp / force-push lên nhánh `main` (truy vết `AI-LOG A10` — `secret-scan.mjs` từng báo "passed" khi git lỗi; `AI-LOG A12` — `ee426da` từng push thẳng `main`).
+- **Không bao giờ** thêm `|| true`, `continue-on-error: true`, `--passWithNoTests`, `catch {}` rỗng trong script kiểm tra, hoặc push trực tiếp / force-push lên nhánh `main` (truy vết `AI-LOG A10` — `secret-scan.mjs` từng báo "passed" khi git lỗi, PR #5).
 - **Không bao giờ** thêm hook, cờ hay setter chỉ phục vụ test vào `src/main`; dựng tình huống lỗi trong test bằng DB thật, spy hoặc constraint SQL (truy vết `AI-LOG A11`).
 
