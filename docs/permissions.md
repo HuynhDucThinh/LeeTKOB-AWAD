@@ -16,9 +16,11 @@ Tài liệu này quy định cụ thể **3 tầng quyền hạn (Three Tiers of
   - `npm run sec:scan`
   - `npm run check`
   - `git status`, `git diff`, `git log`
-- Viết hoặc chỉnh sửa mã nguồn trong `backend/src/main/`, bổ sung các bài kiểm thử mới trong `backend/src/test/`, và cập nhật tài liệu báo cáo theo đúng yêu cầu của hợp đồng.
+- Viết hoặc chỉnh sửa mã nguồn trong `backend/src/main/` và cập nhật tài liệu báo cáo theo đúng yêu cầu của hợp đồng.
+- Đọc và chỉnh sửa `.env.example` (chỉ tên biến, không giá trị). Không bao giờ chạm tới `.env`.
 
 ### Tầng 2 — Phải hỏi và được con người phê duyệt trước (Ask First)
+- Thêm mới, sửa hoặc xoá bất kỳ bài kiểm thử nào trong `backend/src/test/` (thực thi bằng `ask: Edit(backend/src/test/**)` trong `.claude/settings.json`). Theo quy trình của nhóm, chỉ cập nhật phần dựng tình huống test (test setup) khi gỡ bỏ test hooks hoặc khi bổ sung điều khoản hợp đồng mới, tuyệt đối giữ nguyên mọi câu lệnh kiểm tra kết quả (`AI-LOG A13`).
 - Thêm mới, nâng cấp hoặc gỡ bỏ bất kỳ thư viện phụ thuộc nào trong `backend/pom.xml` hoặc `package.json`.
 - Chỉnh sửa cấu hình đường ống CI/CD (`.github/workflows/ci.yml`), quy tắc Checkstyle/Spotless, cấu trúc lược đồ cơ sở dữ liệu (`schema.sql`), hoặc nội dung hợp đồng đã chốt (`docs/contract/publish-lab.md`).
 - Thực hiện các thao tác Git làm thay đổi lịch sử hoặc trạng thái từ xa: `git commit`, `git push` lên nhánh tính năng, mở hoặc hợp nhất (merge) Pull Request trên GitHub.

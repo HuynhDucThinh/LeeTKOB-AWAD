@@ -1,39 +1,46 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(npm run lint)",
-      "Bash(npm run format:check)",
-      "Bash(npm run typecheck)",
-      "Bash(npm test)",
-      "Bash(npm run sec:scan)",
-      "Bash(npm run check)",
-      "Bash(git status*)",
-      "Bash(git diff*)",
-      "Bash(git log*)"
-    ],
-    "ask": [
-      "Edit(backend/pom.xml)",
-      "Edit(package.json)",
-      "Edit(.github/**)",
-      "Edit(docs/contract/**)",
-      "Edit(backend/src/main/resources/schema.sql)",
-      "Bash(git commit*)",
-      "Bash(git push*)",
-      "Bash(gh pr *)"
-    ],
-    "deny": [
-      "Read(./.env)",
-      "Read(./.env.*)",
-      "Edit(./.env)",
-      "Edit(**/eval/**)",
-      "Edit(**/labels.jsonl)",
-      "Bash(git push --force*)",
-      "Bash(git push -f*)",
-      "Bash(git push origin main*)",
-      "Bash(git branch -D*)",
-      "Bash(git tag -d*)",
-      "Bash(rm -rf*)"
-    ]
-  }
+    "permissions":  {
+                        "allow":  [
+                                      "Bash(npm run lint)",
+                                      "Bash(npm run format:check)",
+                                      "Bash(npm run typecheck)",
+                                      "Bash(npm test)",
+                                      "Bash(npm run sec:scan)",
+                                      "Bash(npm run check)",
+                                      "Bash(git status*)",
+                                      "Bash(git diff*)",
+                                      "Bash(git log*)",
+                                      "Read(./.env.example)",
+                                      "Edit(./.env.example)"
+                                  ],
+                        "ask":  [
+                                    "Edit(backend/pom.xml)",
+                                    "Edit(package.json)",
+                                    "Edit(.github/**)",
+                                    "Edit(docs/contract/**)",
+                                    "Edit(backend/src/main/resources/schema.sql)",
+                                    "Bash(git commit*)",
+                                    "Bash(git push*)",
+                                    "Bash(gh pr *)",
+                                    "Edit(backend/src/test/**)"
+                                ],
+                        "deny":  [
+                                     "Read(./.env.local)",
+                                     "Read(./.env.*.local)",
+                                     "Read(./.env.production)",
+                                     "Read(./.env.development)",
+                                     "Edit(./.env.local)",
+                                     "Edit(./.env.*.local)",
+                                     "Read(./.env)",
+                                     "Edit(./.env)",
+                                     "Edit(**/eval/**)",
+                                     "Edit(**/labels.jsonl)",
+                                     "Bash(git push --force*)",
+                                     "Bash(git push -f*)",
+                                     "Bash(git push origin main*)",
+                                     "Bash(git branch -D*)",
+                                     "Bash(git tag -d*)",
+                                     "Bash(rm -rf*)"
+                                 ]
+                    }
 }
-
