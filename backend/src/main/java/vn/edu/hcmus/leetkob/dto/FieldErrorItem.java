@@ -1,4 +1,4 @@
-package vn.edu.hcmus.leetkob.publish;
+package vn.edu.hcmus.leetkob.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 

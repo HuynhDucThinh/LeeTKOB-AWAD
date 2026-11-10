@@ -3,7 +3,7 @@
 > **Trạng thái:** Hợp đồng chính thức Cột mốc `PA#2` (Ngày hiệu lực: 10/11/2026)  
 > **Nhóm tác giả:** Trà Văn Sỹ (`23120197`) · Huỳnh Đức Thịnh (`23120199`) · Lê Trung Thành Đạt (`23120228`)  
 > **Nguồn tham chiếu nghiệp vụ:** Đề bài dự án lớp (*LeeTKOB — class project brief*, Mục 3 & 4) và [FAQ chính thức của nhóm Product Owners (`FAQ-01`, `FAQ-02`, `FAQ-09`, `FAQ-12`)](https://github.com/tkob-team/LeeTKOB-FAQ/blob/main/FAQ.md).  
-> **Cấu trúc tài liệu:** Tuân thủ bố cục 5 phần chuẩn của `CONTRACT.md` (`IA#3`). Mọi bài kiểm thử trong [`PublishEndpointContractTest.java`](../../backend/src/test/java/vn/edu/hcmus/leetkob/publish/PublishEndpointContractTest.java) đều tham chiếu trực tiếp tới số mục của tài liệu này.
+> **Cấu trúc tài liệu:** Tuân thủ bố cục 5 phần chuẩn của `CONTRACT.md` (`IA#3`). Mọi bài kiểm thử trong [`PublishEndpointContractTest.java`](../../backend/src/test/java/vn/edu/hcmus/leetkob/controller/PublishEndpointContractTest.java) đều tham chiếu trực tiếp tới số mục của tài liệu này.
 
 ---
 

@@ -1,6 +1,7 @@
-package vn.edu.hcmus.leetkob.publish;
+package vn.edu.hcmus.leetkob.exception;
 
 import java.util.List;
+import vn.edu.hcmus.leetkob.dto.FieldErrorItem;
 
 public class ProblemException extends RuntimeException {
 

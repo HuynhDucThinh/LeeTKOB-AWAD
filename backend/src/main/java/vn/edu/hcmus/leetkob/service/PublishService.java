@@ -1,4 +1,4 @@
-package vn.edu.hcmus.leetkob.publish;
+package vn.edu.hcmus.leetkob.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -6,21 +6,29 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import org.springframework.dao.DataAccessException;
-import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
-import vn.edu.hcmus.leetkob.auth.Principal;
+import vn.edu.hcmus.leetkob.domain.LabRecord;
+import vn.edu.hcmus.leetkob.dto.PublicationReceipt;
+import vn.edu.hcmus.leetkob.dto.PublishResult;
+import vn.edu.hcmus.leetkob.exception.ProblemException;
+import vn.edu.hcmus.leetkob.exception.ProblemKind;
+import vn.edu.hcmus.leetkob.repository.LabPublishRepository;
+import vn.edu.hcmus.leetkob.security.Principal;
 
+/** Business service orchestrating atomic lab mark publication and idempotency guarantees. */
 @Service
 public class PublishService {
 
   private static final DateTimeFormatter ISO_MILLIS =
       DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC);
 
-  private final JdbcTemplate jdbcTemplate;
+  private final LabPublishRepository labPublishRepository;
   private final TransactionTemplate transactionTemplate;
   private final ObjectMapper objectMapper;
   private final ReentrantLock writeLock = new ReentrantLock(true);
@@ -28,15 +36,13 @@ public class PublishService {
   private volatile boolean simulateAuditFailure = false;
 
   public PublishService(
-      JdbcTemplate jdbcTemplate,
+      LabPublishRepository labPublishRepository,
       TransactionTemplate transactionTemplate,
       ObjectMapper objectMapper) {
-    this.jdbcTemplate = jdbcTemplate;
+    this.labPublishRepository = labPublishRepository;
     this.transactionTemplate = transactionTemplate;
     this.objectMapper = objectMapper;
   }
-
-  private record LabRow(int id, String deadline) {}
 
   public void setBeforeTransactionalAccessHook(Runnable hook) {
     this.beforeTransactionalAccessHook = hook;
@@ -51,36 +57,24 @@ public class PublishService {
   }
 
   public void assertAccess(int labId, Principal principal) {
-    ownedLab(labId, principal);
+    requireOwnedLab(labId, principal);
     Runnable hook = this.beforeTransactionalAccessHook;
     if (hook != null) {
       hook.run();
     }
   }
 
-  private LabRow ownedLab(int labId, Principal principal) {
-    List<LabRow> rows =
-        jdbcTemplate.query(
-            """
-            SELECT l.id, l.deadline
-            FROM labs l
-            JOIN ta_classes t ON t.class_id = l.class_id
-            WHERE l.id = ? AND t.ta_id = ?
-            """,
-            (rs, rowNum) -> new LabRow(rs.getInt("id"), rs.getString("deadline")),
-            labId,
-            principal.id());
-    if (rows.isEmpty()) {
-      throw new ProblemException(ProblemKind.NOT_FOUND);
-    }
-    return rows.getFirst();
+  private LabRecord requireOwnedLab(int labId, Principal principal) {
+    return labPublishRepository
+        .findOwnedLab(labId, principal.id())
+        .orElseThrow(() -> new ProblemException(ProblemKind.NOT_FOUND));
   }
 
   public PublishResult publish(int labId, Principal principal, Instant now) {
     if (!writeLock.tryLock()) {
       boolean acquired;
       try {
-        acquired = writeLock.tryLock(250, java.util.concurrent.TimeUnit.MILLISECONDS);
+        acquired = writeLock.tryLock(250, TimeUnit.MILLISECONDS);
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         throw new ProblemException(ProblemKind.PUBLICATION_UNAVAILABLE);
@@ -102,15 +96,11 @@ public class PublishService {
   }
 
   private PublishResult executePublishInTransaction(int labId, Principal principal, Instant now) {
-    LabRow lab = ownedLab(labId, principal);
+    LabRecord lab = requireOwnedLab(labId, principal);
 
-    List<String> existingReceipts =
-        jdbcTemplate.query(
-            "SELECT receipt FROM publications WHERE lab_id = ?",
-            (rs, rowNum) -> rs.getString("receipt"),
-            labId);
-    if (!existingReceipts.isEmpty()) {
-      return new PublishResult(existingReceipts.getFirst(), true);
+    Optional<String> existingReceipt = labPublishRepository.findExistingReceipt(labId);
+    if (existingReceipt.isPresent()) {
+      return new PublishResult(existingReceipt.get(), true);
     }
 
     Instant deadline;
@@ -124,36 +114,15 @@ public class PublishService {
       throw new ProblemException(ProblemKind.DEADLINE_NOT_REACHED);
     }
 
-    Integer pendingJudge =
-        jdbcTemplate.queryForObject(
-            """
-            SELECT COUNT(*) FROM counted_submissions
-            WHERE lab_id = ? AND judge_status IN ('queued', 'running')
-            """,
-            Integer.class,
-            labId);
-    if (pendingJudge != null && pendingJudge > 0) {
+    if (labPublishRepository.countPendingJudgeSubmissions(labId) > 0) {
       throw new ProblemException(ProblemKind.JUDGING_PENDING);
     }
 
-    Integer pendingReview =
-        jdbcTemplate.queryForObject(
-            """
-            SELECT COUNT(*) FROM review_items r
-            JOIN counted_submissions s ON s.id = r.submission_id
-            WHERE s.lab_id = ? AND r.decision IS NULL
-            """,
-            Integer.class,
-            labId);
-    if (pendingReview != null && pendingReview > 0) {
+    if (labPublishRepository.countPendingReviewItems(labId) > 0) {
       throw new ProblemException(ProblemKind.REVIEWS_PENDING);
     }
 
-    Integer submissionCount =
-        jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM counted_submissions WHERE lab_id = ?", Integer.class, labId);
-    int count = submissionCount != null ? submissionCount : 0;
-
+    int count = labPublishRepository.countCountedSubmissions(labId);
     PublicationReceipt receipt =
         new PublicationReceipt(labId, "published", ISO_MILLIS.format(now), principal.id(), count);
 
@@ -164,25 +133,15 @@ public class PublishService {
       throw new ProblemException(ProblemKind.INTERNAL);
     }
 
-    jdbcTemplate.update(
-        "INSERT INTO publications (lab_id, receipt) VALUES (?, ?)", labId, receiptJson);
-    jdbcTemplate.update(
-        """
-            INSERT INTO published_marks (lab_id, submission_id, score_tenths)
-            SELECT lab_id, id, score_tenths FROM counted_submissions WHERE lab_id = ?
-            """,
-        labId);
+    labPublishRepository.insertPublicationReceipt(labId, receiptJson);
+    labPublishRepository.copyCountedMarksToPublished(labId);
 
     if (simulateAuditFailure) {
-      throw new org.springframework.dao.DataIntegrityViolationException(
+      throw new DataIntegrityViolationException(
           "secret-fixture /private.db SQL audit insert failure");
     }
 
-    jdbcTemplate.update(
-        "INSERT INTO publication_audit (lab_id, actor_id, at, event) VALUES (?, ?, ?, 'lab.published')",
-        labId,
-        principal.id(),
-        receipt.publishedAt());
+    labPublishRepository.insertPublicationAudit(labId, principal.id(), receipt.publishedAt());
 
     return new PublishResult(receiptJson, false);
   }

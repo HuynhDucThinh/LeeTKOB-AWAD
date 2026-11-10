@@ -1,4 +1,4 @@
-package vn.edu.hcmus.leetkob.publish;
+package vn.edu.hcmus.leetkob.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -34,8 +34,10 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
-import vn.edu.hcmus.leetkob.auth.AuthResolver;
-import vn.edu.hcmus.leetkob.auth.Principal;
+import vn.edu.hcmus.leetkob.dto.PublicationReceipt;
+import vn.edu.hcmus.leetkob.security.AuthResolver;
+import vn.edu.hcmus.leetkob.security.Principal;
+import vn.edu.hcmus.leetkob.service.PublishService;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class PublishEndpointContractTest {

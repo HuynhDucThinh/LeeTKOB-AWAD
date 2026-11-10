@@ -1,4 +1,4 @@
-package vn.edu.hcmus.leetkob.publish;
+package vn.edu.hcmus.leetkob.exception;
 
 public enum ProblemKind {
   INVALID_JSON("invalid-json", 400, "Malformed JSON", "Request body must be valid UTF-8 JSON."),

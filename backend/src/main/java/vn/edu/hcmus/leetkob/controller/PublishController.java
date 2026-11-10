@@ -1,6 +1,7 @@
-package vn.edu.hcmus.leetkob.publish;
+package vn.edu.hcmus.leetkob.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
@@ -16,10 +17,8 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -28,9 +27,16 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import vn.edu.hcmus.leetkob.auth.AuthResolver;
-import vn.edu.hcmus.leetkob.auth.Principal;
+import vn.edu.hcmus.leetkob.dto.FieldErrorItem;
+import vn.edu.hcmus.leetkob.dto.PublishResult;
+import vn.edu.hcmus.leetkob.exception.ProblemException;
+import vn.edu.hcmus.leetkob.exception.ProblemKind;
+import vn.edu.hcmus.leetkob.exception.ProblemResponseWriter;
+import vn.edu.hcmus.leetkob.security.AuthResolver;
+import vn.edu.hcmus.leetkob.security.Principal;
+import vn.edu.hcmus.leetkob.service.PublishService;
 
+/** HTTP boundary controller enforcing the POST /v1/labs/{labId}/publish contract. */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class PublishController extends OncePerRequestFilter {
@@ -46,16 +52,19 @@ public class PublishController extends OncePerRequestFilter {
   private final AuthResolver authResolver;
   private final Clock clock;
   private final ObjectMapper objectMapper;
+  private final ProblemResponseWriter problemResponseWriter;
 
   public PublishController(
       PublishService publishService,
       AuthResolver authResolver,
       Clock clock,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      ProblemResponseWriter problemResponseWriter) {
     this.publishService = publishService;
     this.authResolver = authResolver;
     this.clock = clock;
     this.objectMapper = objectMapper;
+    this.problemResponseWriter = problemResponseWriter;
   }
 
   @Override
@@ -109,9 +118,9 @@ public class PublishController extends OncePerRequestFilter {
       response.setContentLength(out.length);
       response.getOutputStream().write(out);
     } catch (ProblemException e) {
-      writeProblem(request, response, e.kind(), e.errors(), instance);
+      problemResponseWriter.writeProblem(request, response, e.kind(), e.errors(), instance);
     } catch (Exception e) {
-      writeProblem(request, response, ProblemKind.INTERNAL, null, instance);
+      problemResponseWriter.writeProblem(request, response, ProblemKind.INTERNAL, null, instance);
     }
   }
 
@@ -145,10 +154,7 @@ public class PublishController extends OncePerRequestFilter {
     JsonNode jsonNode;
     try {
       jsonNode =
-          objectMapper
-              .reader()
-              .with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
-              .readTree(text);
+          objectMapper.reader().with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readTree(text);
     } catch (JsonProcessingException e) {
       throw new ProblemException(ProblemKind.INVALID_JSON);
     }
@@ -156,13 +162,9 @@ public class PublishController extends OncePerRequestFilter {
       throw new ProblemException(ProblemKind.INVALID_JSON);
     }
 
-    try {
-      String trimmed = text.trim();
-      if ("NaN".equals(trimmed) || "Infinity".equals(trimmed) || "-Infinity".equals(trimmed)) {
-        throw new ProblemException(ProblemKind.INVALID_JSON);
-      }
-    } catch (ProblemException e) {
-      throw e;
+    String trimmed = text.trim();
+    if ("NaN".equals(trimmed) || "Infinity".equals(trimmed) || "-Infinity".equals(trimmed)) {
+      throw new ProblemException(ProblemKind.INVALID_JSON);
     }
 
     List<FieldErrorItem> errors = new ArrayList<>();
@@ -209,45 +211,5 @@ public class PublishController extends OncePerRequestFilter {
       names.add(decoded);
     }
     return names;
-  }
-
-  private void writeProblem(
-      HttpServletRequest request,
-      HttpServletResponse response,
-      ProblemKind kind,
-      List<FieldErrorItem> errors,
-      String instance)
-      throws IOException {
-    response.setStatus(kind.status());
-    response.setHeader("Cache-Control", "no-store");
-    response.setHeader("X-Content-Type-Options", "nosniff");
-    response.setHeader("Content-Type", "application/problem+json");
-    if (kind.status() == 401) {
-      response.setHeader("WWW-Authenticate", "Bearer realm=\"leetkob\"");
-    }
-    if (kind.status() == 405) {
-      response.setHeader("Allow", "POST");
-    }
-    if (kind.status() == 503) {
-      response.setHeader("Retry-After", "1");
-    }
-
-    if ("HEAD".equalsIgnoreCase(request.getMethod())) {
-      return;
-    }
-
-    Map<String, Object> body = new LinkedHashMap<>();
-    body.put("type", "https://leetkob.example/problems/" + kind.slug());
-    body.put("title", kind.title());
-    body.put("status", kind.status());
-    body.put("detail", kind.detail());
-    body.put("instance", instance);
-    if (errors != null && !errors.isEmpty()) {
-      body.put("errors", errors);
-    }
-
-    byte[] out = objectMapper.writeValueAsBytes(body);
-    response.setContentLength(out.length);
-    response.getOutputStream().write(out);
   }
 }

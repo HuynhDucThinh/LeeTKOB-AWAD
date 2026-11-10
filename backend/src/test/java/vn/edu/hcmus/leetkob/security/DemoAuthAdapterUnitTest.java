@@ -1,4 +1,4 @@
-package vn.edu.hcmus.leetkob.auth;
+package vn.edu.hcmus.leetkob.security;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;

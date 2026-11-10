@@ -1,4 +1,4 @@
-package vn.edu.hcmus.leetkob.auth;
+package vn.edu.hcmus.leetkob.security;
 
 import java.util.Optional;
 

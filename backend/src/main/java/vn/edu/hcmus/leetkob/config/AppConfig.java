@@ -7,9 +7,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import vn.edu.hcmus.leetkob.auth.AuthResolver;
-import vn.edu.hcmus.leetkob.auth.DemoAuthAdapter;
-import vn.edu.hcmus.leetkob.auth.Principal;
+import vn.edu.hcmus.leetkob.security.AuthResolver;
+import vn.edu.hcmus.leetkob.security.DemoAuthAdapter;
+import vn.edu.hcmus.leetkob.security.Principal;
 
 @Configuration
 public class AppConfig {
