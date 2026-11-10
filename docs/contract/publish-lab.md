@@ -48,7 +48,7 @@ Mọi phản hồi không thành công (non-2xx) đều tuân thủ chuẩn **RF
 | `reviews-pending` | `409` | `Reviews pending` | Còn ít nhất một mục kiểm tra ràng buộc trong hàng đợi (`review_items`) chưa có quyết định duyệt của TA (`decision IS NULL` — Đề bài Mục 3, `FAQ-09`). |
 | `payload-too-large` | `413` | `Payload too large` | Kích thước request body vượt quá **4096 bytes** (tính theo số byte UTF-8 thực tế). |
 | `unsupported-media-type` | `415` | `Unsupported media type` | Header `Content-Type` không phải `application/json` (chỉ cho phép tham số tùy chọn `charset=utf-8`), hoặc `Content-Encoding` khác `identity`. |
-| `publication-unavailable` | `503` | `Publication unavailable` | Cơ sở dữ liệu đang bận khóa ghi hoặc tạm thời không thể mở giao dịch. Kèm header `Retry-After: 1` để client thử lại an toàn. |
+| `publication-unavailable` | `503` | `Publication unavailable` | Cơ sở dữ liệu đang bận khóa ghi: khóa dòng của **chính bài lab đó** bị một giao dịch khác giữ quá thời gian chờ (1 giây), hoặc tạm thời không thể mở giao dịch. Publish các bài lab khác không bị ảnh hưởng. Kèm header `Retry-After: 1` để client thử lại an toàn. |
 | `internal` | `500` | `Internal error` | Lỗi nội bộ bất ngờ trong quá trình xác thực hoặc lưu trữ. Trường `detail` luôn cố định là `"The request could not be completed."` và mọi thay đổi dở dang đều được rollback. |
 
 **Ví dụ phản hồi lỗi chuẩn RFC 9457 (`409 Conflict`):**
@@ -67,6 +67,32 @@ X-Content-Type-Options: nosniff
   "instance": "/v1/labs/1/publish"
 }
 ```
+
+**Ví dụ `400 validation` (body không phải object, URL có query `?foo=1&bar=2&foo=3`):**
+
+```http
+HTTP/1.1 400 Bad Request
+Content-Type: application/problem+json
+Cache-Control: no-store
+X-Content-Type-Options: nosniff
+
+{
+  "type": "https://leetkob.example/problems/validation",
+  "title": "Invalid request",
+  "status": 400,
+  "detail": "Request parameters or body failed validation.",
+  "instance": "/v1/labs/1/publish",
+  "errors": [
+    { "pointer": "", "detail": "must be a JSON object" },
+    { "parameter": "foo", "detail": "query parameters are not supported" },
+    { "parameter": "bar", "detail": "query parameters are not supported" }
+  ]
+}
+```
+
+Mỗi tên tham số chỉ xuất hiện một lần, theo thứ tự xuất hiện đầu tiên trong URL. Phần tử `pointer` (nếu có) luôn đứng trước các phần tử `parameter`.
+
+**Ví dụ `503` (khóa ghi bận):** như mẫu `409` ở trên, với `"type": "https://leetkob.example/problems/publication-unavailable"`, `"title": "Publication unavailable"`, `"status": 503`, `"detail": "Publication storage is temporarily busy; retry shortly."` và thêm header `Retry-After: 1`.
 
 **Cam kết không tác dụng phụ (Zero Side-Effects on Failure):** Mọi phản hồi lỗi (`4xx` và `5xx`) đều giữ nguyên tuyệt đối trạng thái của cả 3 bảng đầu ra (`publications`, `published_marks`, `publication_audit`).
 
@@ -136,6 +162,18 @@ Content-Type: application/json
 - **Các lần gọi lặp lại (Replay) hợp lệ:** Khi chính TA đó hoặc một TA đồng nghiệp cùng phụ trách lớp đó gọi lại `POST /v1/labs/{labId}/publish`, máy chủ trả về `200 OK` kèm header `Idempotent-Replayed: true` và **chuỗi JSON biên nhận giống hệt từng byte** so với lần đầu tiên (`publishedAt` và `publishedBy` giữ nguyên của lần đầu, không sinh thêm bản ghi `publication_audit` hay ghi đè `published_marks`).
 - **Không bỏ qua kiểm tra an toàn khi Replay:** Một bài lab dù đã công bố vẫn bắt buộc phải đi qua đầy đủ các bước xác thực (`401`), vai trò (`403`), quyền sở hữu lớp hiện tại (`404` nếu TA đã bị rút khỏi lớp) và kiểm tra định dạng đầu vào (`400`/`413`/`415`).
 - **Xử lý yêu cầu đồng thời:** Khi nhiều yêu cầu hợp lệ tới cùng một lúc, khóa giao dịch và ràng buộc khóa chính trên bảng `publications` đảm bảo chỉ duy nhất **1 yêu cầu** thực hiện ghi mới (không có header replay) và tất cả các yêu cầu còn lại hội tụ về cùng một biên nhận dưới dạng replay (`Idempotent-Replayed: true`).
+
+**Ví dụ phản hồi replay** (gọi lại sau lần công bố đầu tiên ở ví dụ Mục 3; body giống hệt từng byte):
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+Cache-Control: no-store
+X-Content-Type-Options: nosniff
+Idempotent-Replayed: true
+
+{"labId":1,"status":"published","publishedAt":"2026-11-05T08:00:00.000Z","publishedBy":"ta-own","submissionCount":2}
+```
 
 ---
 

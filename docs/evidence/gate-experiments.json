@@ -50,6 +50,30 @@
       "greenRunUrl": "https://github.com/HuynhDucThinh/LeeTKOB-AWAD/actions/runs/42766615499",
       "mergeCommit": "2bfc345",
       "repairedInSamePr": true
+    },
+    {
+      "id": "A09",
+      "kind": "real defect (not deliberate)",
+      "pullRequest": "https://github.com/HuynhDucThinh/LeeTKOB-AWAD/pull/4",
+      "branch": "fix/auth-fail-closed",
+      "description": "AppConfig defaulted leetkob.auth.mode to 'test', so the standalone server accepted hardcoded tokens such as 'Bearer own'. Tests added first, then src/main fixed.",
+      "redCommit": "13e1428",
+      "redRunUrl": "https://github.com/HuynhDucThinh/LeeTKOB-AWAD/actions/runs/42769824380",
+      "failedCheck": "test",
+      "failedTests": [
+        "missingDemoTokenFailsStartupInsteadOfFallingBackToTestIdentities",
+        "weakDemoTokenFailsStartup",
+        "hardcodedTestLabelsAreNeverAcceptedByMainConfiguration"
+      ],
+      "blockedMergeResponse": {
+        "command": "gh pr merge 4 --merge",
+        "message": "Pull request HuynhDucThinh/LeeTKOB-AWAD#4 is not mergeable: the base branch policy prohibits the merge.",
+        "mergeStateStatus": "BLOCKED"
+      },
+      "greenFixCommit": "f70f2fe",
+      "greenRunUrl": "https://github.com/HuynhDucThinh/LeeTKOB-AWAD/actions/runs/42769997105",
+      "mergeCommit": "9307283",
+      "repairedInSamePr": true
     }
   ]
 }

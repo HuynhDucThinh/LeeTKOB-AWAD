@@ -41,7 +41,7 @@ Tất cả các biến cấu hình của ứng dụng được liệt kê (chỉ
 | `SERVER_HOST` | `127.0.0.1` | Địa chỉ lắng nghe cục bộ của HTTP server |
 | `SERVER_PORT` | `8080` | Cổng HTTP hợp lệ (`1`–`65535`) |
 | `DATABASE_URL` | `jdbc:h2:mem:leetkob;MODE=PostgreSQL...` | Chuỗi kết nối cơ sở dữ liệu SQL |
-| `DEMO_AUTH_TOKEN` | Không có (bắt buộc truyền khi chạy standalone demo) | Token bí mật tối thiểu 32 ký tự dành riêng cho chế độ chạy demo cục bộ |
+| `DEMO_AUTH_TOKEN` | Không có — thiếu hoặc < 32 ký tự thì máy chủ **không khởi động** | Token bí mật duy nhất của trợ giảng demo (`AppConfig`, fail-closed — `AI-LOG A09`) |
 
 - File `.env` và mọi biến thể `.env.*` (trừ `.env.example`) đều bị chặn bởi [`.gitignore`](../.gitignore).
 - Ứng dụng khi chạy độc lập (standalone server) sẽ kiểm tra cấu hình ngay lúc khởi động (fail-closed): nếu `DEMO_AUTH_TOKEN` bị bỏ trống hoặc ngắn hơn 32 ký tự, bộ xác thực demo sẽ từ chối khởi tạo để ngăn chặn việc chạy server với khóa mặc định yếu.

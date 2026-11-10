@@ -24,7 +24,7 @@
 
 ### Yêu cầu môi trường
 - **JDK 21 LTS** (`java -version`) — Maven đã được đóng gói sẵn trong dự án qua Maven Wrapper (`backend/mvnw` và `backend/mvnw.cmd`).
-- **Node.js $\ge$ 22** (`node -v`) và `npm` (chỉ dùng để điều phối thống nhất các lệnh kiểm tra đa nền tảng, không yêu cầu cài đặt thư viện ngoài, không cần Docker hay máy chủ cơ sở dữ liệu rời).
+- **Node.js ≥ 22** (`node -v`) và `npm` (chỉ dùng để điều phối thống nhất các lệnh kiểm tra đa nền tảng, không yêu cầu cài đặt thư viện ngoài, không cần Docker hay máy chủ cơ sở dữ liệu rời).
 
 ### Các bước thực thi kiểm tra
 
@@ -45,7 +45,7 @@ npm test
 | **Lint** | `npm run lint` | `npm run lint` | Maven Checkstyle (`checkstyle.xml`, `failsOnError=true`) |
 | **Format Check** | `npm run format:check` | `npm run format:check` | Spotless (`google-java-format`, chế độ chỉ đọc) |
 | **Type Check** | `npm run typecheck` | `npm run typecheck` | Trình biên dịch tĩnh Java 21 (`mvnw test-compile`) |
-| **Tests (Unit + Contract)** | `npm test` | `npm test` | JUnit 5 (22 bài HTTP Contract Tests + 6 bài Unit Tests) |
+| **Tests (Unit + Contract)** | `npm test` | `npm test` | JUnit 5 (23 bài HTTP Contract Tests + 9 bài Unit Tests = 32) |
 | **Quét Bí mật (Secret Scan)** | `npm run sec:scan` | `npm run sec:scan` + Gitleaks `8.30.1` | Quét toàn bộ file và lịch sử Git (`git log --all -p`) |
 
 Mỗi lệnh đều trả về mã thoát khác `0` ngay khi phát hiện lỗi. Lệnh `npm run format` được cung cấp để tự động căn chỉnh định dạng dưới máy cá nhân; trên CI luôn sử dụng lệnh chỉ đọc `npm run format:check`. Toàn bộ bài kiểm thử hợp đồng (Contract Tests) đều nằm trong `npm test` cùng với cấu hình `failIfNoTests=true` của Surefire để không bao giờ xảy ra tình trạng bỏ sót test hoặc chạy 0 test mà vẫn báo xanh.
@@ -97,6 +97,6 @@ Mỗi biến trên đều được đọc thật trong [`application.properties`
 ## 4. Kiến trúc và Đảm bảo Toàn vẹn Dữ liệu
 
 - [`PublishController.java`](backend/src/main/java/vn/edu/hcmus/leetkob/controller/PublishController.java): Kiểm soát luồng HTTP theo đúng thứ tự 7 bước của hợp đồng, kiểm tra quyền sở hữu lớp trước khi đọc body, giới hạn kích thước payload tối đa 4096 bytes UTF-8 và chuẩn hóa mọi phản hồi lỗi theo RFC 9457 (`application/problem+json`).
-- [`PublishService.java`](backend/src/main/java/vn/edu/hcmus/leetkob/service/PublishService.java): Thực thi câu lệnh SQL tham số hóa (parameterized SQL), kiểm tra lại quyền phân công lớp bên trong giao dịch ghi, đảm bảo tính nguyên tử (atomic transaction) khi lưu đồng thời biên nhận (`publications`), bản chụp điểm (`published_marks`) và nhật ký kiểm toán (`publication_audit`).
+- [`PublishService.java`](backend/src/main/java/vn/edu/hcmus/leetkob/service/PublishService.java): Mở giao dịch ghi, lấy khóa dòng `SELECT … FOR UPDATE` trên đúng bài lab (hết `LOCK_TIMEOUT` → `503`), kiểm tra lại quyền phân công lớp bên trong giao dịch, đảm bảo tính nguyên tử (atomic transaction) khi lưu đồng thời biên nhận (`publications`), bản chụp điểm (`published_marks`) và nhật ký kiểm toán (`publication_audit`).
 - [`DemoAuthAdapter.java`](backend/src/main/java/vn/edu/hcmus/leetkob/security/DemoAuthAdapter.java) & [`MarkCalculator.java`](backend/src/main/java/vn/edu/hcmus/leetkob/domain/MarkCalculator.java): Xác thực token theo cơ chế fail-closed (so sánh hằng thời gian `MessageDigest.isEqual`) và công thức tính điểm bài lab không bao giờ âm.
-- [`PublishEndpointContractTest.java`](backend/src/test/java/vn/edu/hcmus/leetkob/controller/PublishEndpointContractTest.java): Bộ 22 bài kiểm thử hợp đồng qua HTTP thật kết hợp với 6 bài Unit Tests trong [`MarkCalculatorUnitTest.java`](backend/src/test/java/vn/edu/hcmus/leetkob/domain/MarkCalculatorUnitTest.java) và [`DemoAuthAdapterUnitTest.java`](backend/src/test/java/vn/edu/hcmus/leetkob/security/DemoAuthAdapterUnitTest.java) (tổng cộng **28 bài test**).
+- [`PublishEndpointContractTest.java`](backend/src/test/java/vn/edu/hcmus/leetkob/controller/PublishEndpointContractTest.java): Bộ 23 bài kiểm thử hợp đồng qua HTTP thật kết hợp với 9 bài Unit Tests trong [`MarkCalculatorUnitTest.java`](backend/src/test/java/vn/edu/hcmus/leetkob/domain/MarkCalculatorUnitTest.java) , [`DemoAuthAdapterUnitTest.java`](backend/src/test/java/vn/edu/hcmus/leetkob/security/DemoAuthAdapterUnitTest.java) và [`AppConfigUnitTest.java`](backend/src/test/java/vn/edu/hcmus/leetkob/config/AppConfigUnitTest.java) (tổng cộng **32 bài test**).
