@@ -6,6 +6,7 @@ import com.leetkob.security.oauth2.OAuth2AuthenticationSuccessHandler;
 import com.leetkob.security.oidc.CustomOidcUserService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -17,6 +18,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -33,6 +35,7 @@ public class SecurityConfig {
   private final CustomOAuth2UserService customOAuth2UserService;
   private final CustomOidcUserService customOidcUserService;
   private final OAuth2AuthenticationSuccessHandler oAuth2SuccessHandler;
+  private final ObjectProvider<ClientRegistrationRepository> clientRegistrationRepositoryProvider;
 
   @Bean
   public PasswordEncoder passwordEncoder() {
@@ -66,24 +69,28 @@ public class SecurityConfig {
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers("/api/auth/**", "/oauth2/**", "/login/oauth2/**")
+                auth.requestMatchers("/api/auth/**", "/oauth2/**", "/login/oauth2/**", "/v1/**")
                     .permitAll()
                     .anyRequest()
                     .authenticated())
         .exceptionHandling(
             customizer ->
                 customizer.authenticationEntryPoint(
-                    new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
-        .oauth2Login(
-            oauth2 ->
-                oauth2
-                    .userInfoEndpoint(
-                        userInfo ->
-                            userInfo
-                                .userService(customOAuth2UserService)
-                                .oidcUserService(customOidcUserService))
-                    .successHandler(oAuth2SuccessHandler))
-        .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                    new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)));
+
+    if (clientRegistrationRepositoryProvider.getIfAvailable() != null) {
+      http.oauth2Login(
+          oauth2 ->
+              oauth2
+                  .userInfoEndpoint(
+                      userInfo ->
+                          userInfo
+                              .userService(customOAuth2UserService)
+                              .oidcUserService(customOidcUserService))
+                  .successHandler(oAuth2SuccessHandler));
+    }
+
+    http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
     return http.build();
   }
