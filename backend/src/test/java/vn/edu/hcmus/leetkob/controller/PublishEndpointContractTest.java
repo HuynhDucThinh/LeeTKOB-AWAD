@@ -7,6 +7,7 @@ import static org.mockito.Mockito.doAnswer;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.leetkob.LeetKobApplication;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -44,7 +45,9 @@ import vn.edu.hcmus.leetkob.repository.LabPublishRepository;
 import vn.edu.hcmus.leetkob.security.AuthResolver;
 import vn.edu.hcmus.leetkob.security.Principal;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+    classes = {LeetKobApplication.class, PublishEndpointContractTest.ContractTestConfig.class},
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class PublishEndpointContractTest {
 
   private static final String NOW_ISO = "2026-11-05T08:00:00.000Z";
