@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const backendDir = resolve(__dirname, '..', 'backend');
 const isWin = process.platform === 'win32';
-const cmd = isWin ? 'mvnw.cmd' : './mvnw';
+const cmd = isWin ? 'gradlew.bat' : './gradlew';
 const args = process.argv.slice(2);
 
 const result = spawnSync(cmd, args, {
@@ -15,9 +15,8 @@ const result = spawnSync(cmd, args, {
 });
 
 if (result.error) {
-  console.error('Failed to execute Maven Wrapper:', result.error.message);
+  console.error('Failed to execute Gradle Wrapper:', result.error.message);
   process.exit(1);
 }
 
 process.exit(result.status ?? 1);
-

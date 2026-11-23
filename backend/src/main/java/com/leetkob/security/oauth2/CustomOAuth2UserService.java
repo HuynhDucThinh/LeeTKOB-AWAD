@@ -18,31 +18,33 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
-    private final OAuthAccountService oAuthAccountService;
+  private final OAuthAccountService oAuthAccountService;
 
-    @Override
-    @Transactional
-    public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
-        OAuth2User oAuth2User = super.loadUser(userRequest);
+  @Override
+  @Transactional
+  public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
+    OAuth2User oAuth2User = super.loadUser(userRequest);
 
-        String registrationId = userRequest.getClientRegistration().getRegistrationId();
-        OauthProvider provider = OauthProvider.valueOf(registrationId.toUpperCase());
+    String registrationId = userRequest.getClientRegistration().getRegistrationId();
+    OauthProvider provider = OauthProvider.valueOf(registrationId.toUpperCase());
 
-        String email = oAuth2User.getAttribute("email");
-        String name = oAuth2User.getAttribute("name");
-        String pictureUrl = oAuth2User.getAttribute("picture");
-        String providerUserId = oAuth2User.getAttribute("sub");
+    String email = oAuth2User.getAttribute("email");
+    String name = oAuth2User.getAttribute("name");
+    String pictureUrl = oAuth2User.getAttribute("picture");
+    String providerUserId = oAuth2User.getAttribute("sub");
 
-        if (providerUserId == null) {
-            providerUserId = oAuth2User.getName();
-        }
-
-        if (email == null || email.isBlank()) {
-            throw new IllegalArgumentException("OAuth provider did not return an email address");
-        }
-
-        User user = oAuthAccountService.findOrCreateOAuthUser(email, name, pictureUrl, provider, providerUserId);
-
-        return new CustomUserDetails(user, oAuth2User.getAttributes());
+    if (providerUserId == null) {
+      providerUserId = oAuth2User.getName();
     }
+
+    if (email == null || email.isBlank()) {
+      throw new IllegalArgumentException("OAuth provider did not return an email address");
+    }
+
+    User user =
+        oAuthAccountService.findOrCreateOAuthUser(
+            email, name, pictureUrl, provider, providerUserId);
+
+    return new CustomUserDetails(user, oAuth2User.getAttributes());
+  }
 }

@@ -18,31 +18,33 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CustomOidcUserService extends OidcUserService {
 
-    private final OAuthAccountService oAuthAccountService;
+  private final OAuthAccountService oAuthAccountService;
 
-    @Override
-    @Transactional
-    public OidcUser loadUser(OidcUserRequest userRequest) throws OAuth2AuthenticationException {
-        OidcUser oidcUser = super.loadUser(userRequest);
+  @Override
+  @Transactional
+  public OidcUser loadUser(OidcUserRequest userRequest) throws OAuth2AuthenticationException {
+    OidcUser oidcUser = super.loadUser(userRequest);
 
-        String registrationId = userRequest.getClientRegistration().getRegistrationId();
-        OauthProvider provider = OauthProvider.valueOf(registrationId.toUpperCase());
+    String registrationId = userRequest.getClientRegistration().getRegistrationId();
+    OauthProvider provider = OauthProvider.valueOf(registrationId.toUpperCase());
 
-        String email = oidcUser.getAttribute("email");
-        String name = oidcUser.getAttribute("name");
-        String pictureUrl = oidcUser.getAttribute("picture");
-        String providerUserId = oidcUser.getAttribute("sub");
+    String email = oidcUser.getAttribute("email");
+    String name = oidcUser.getAttribute("name");
+    String pictureUrl = oidcUser.getAttribute("picture");
+    String providerUserId = oidcUser.getAttribute("sub");
 
-        if (providerUserId == null) {
-            providerUserId = oidcUser.getName();
-        }
-
-        if (email == null || email.isBlank()) {
-            throw new IllegalArgumentException("OAuth provider did not return an email address");
-        }
-
-        User user = oAuthAccountService.findOrCreateOAuthUser(email, name, pictureUrl, provider, providerUserId);
-
-        return new CustomUserDetails(user, oidcUser.getAttributes(), oidcUser.getIdToken());
+    if (providerUserId == null) {
+      providerUserId = oidcUser.getName();
     }
+
+    if (email == null || email.isBlank()) {
+      throw new IllegalArgumentException("OAuth provider did not return an email address");
+    }
+
+    User user =
+        oAuthAccountService.findOrCreateOAuthUser(
+            email, name, pictureUrl, provider, providerUserId);
+
+    return new CustomUserDetails(user, oidcUser.getAttributes(), oidcUser.getIdToken());
+  }
 }

@@ -1,7 +1,9 @@
 plugins {
 	java
+	checkstyle
 	id("org.springframework.boot") version "4.1.1"
 	id("io.spring.dependency-management") version "1.1.7"
+	id("com.diffplug.spotless") version "8.11.0"
 }
 
 group = "com.leetkob"
@@ -22,6 +24,7 @@ val lombokMapstructBindingVersion = "0.2.0"
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+	implementation("org.springframework.boot:spring-boot-starter-jdbc")
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
@@ -30,6 +33,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
 	compileOnly("org.projectlombok:lombok")
 	runtimeOnly("org.postgresql:postgresql")
+	runtimeOnly("com.h2database:h2")
 	implementation("org.springframework.boot:spring-boot-starter-flyway")
 	implementation("org.flywaydb:flyway-database-postgresql")
 
@@ -58,6 +62,31 @@ dependencies {
 	testAnnotationProcessor("org.mapstruct:mapstruct-processor:$mapstructVersion")
 }
 
+checkstyle {
+	toolVersion = "10.21.1"
+	configFile = file("checkstyle.xml")
+	isIgnoreFailures = false
+	maxWarnings = 0
+}
+
+spotless {
+	lineEndings = com.diffplug.spotless.LineEnding.UNIX
+	java {
+		googleJavaFormat("1.24.0")
+		removeUnusedImports()
+	}
+}
+
+springBoot {
+	mainClass.set("com.leetkob.LeetKobApplication")
+}
+
 tasks.withType<Test> {
 	useJUnitPlatform()
+	filter {
+		isFailOnNoMatchingTests = true
+	}
+	testLogging {
+		events("passed", "skipped", "failed")
+	}
 }

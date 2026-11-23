@@ -4,8 +4,8 @@ Tài liệu này là nguồn quy tắc duy nhất cho mọi trợ lý lập trì
 
 ## 1. Stack
 
-- **Backend (`backend/`):** Java 21 LTS, Spring Boot 3.4.3, Maven Wrapper (`./mvnw` / `mvnw.cmd`), Spring JDBC + H2 SQL (chế độ tương thích PostgreSQL `MODE=PostgreSQL`), chuẩn lỗi HTTP Problem Details (RFC 9457).
-- **Trình điều phối lệnh gốc:** Node.js ≥ 22 (`package.json` + `scripts/mvnw.mjs`) giúp đồng nhất lệnh kiểm tra trên Windows, macOS và Linux CI.
+- **Backend (`backend/`):** Java 21 LTS, Spring Boot 4.1.1, Gradle Wrapper (`./gradlew` / `gradlew.bat`), Spring JDBC + JPA + H2 SQL (chế độ tương thích PostgreSQL `MODE=PostgreSQL`) / PostgreSQL + Flyway, chuẩn lỗi HTTP Problem Details (RFC 9457).
+- **Trình điều phối lệnh gốc:** Node.js ≥ 22 (`package.json` + `scripts/gradlew.mjs`) giúp đồng nhất lệnh kiểm tra trên Windows, macOS và Linux CI.
 - **Phạm vi cột mốc `PA#2`:** Chỉ cài đặt ranh giới công bố điểm bài lab (`POST /v1/labs/{labId}/publish`) cùng bộ khung kiểm soát chất lượng (Harness & Quality Gate). Chưa thực thi code C++ của sinh viên trong Sandbox và chưa kết nối mô hình LLM ở `PA#2`.
 
 ## 2. Commands
