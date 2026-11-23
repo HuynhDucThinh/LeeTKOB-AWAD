@@ -9,6 +9,7 @@
 **LeeTKOB** là hệ thống hỗ trợ trợ giảng (TA) kiểm tra các ràng buộc thuật toán và cú pháp trên bài nộp C++ (`Accepted`) trước khi công bố điểm chính thức cho sinh viên. Cột mốc `PA#2` này thiết lập bộ khung kiểm soát kỹ thuật (The Harness), cổng kiểm tra tự động chặn hợp nhất trên GitHub (Quality Gate) và hiện thực đầy đủ ranh giới hợp đồng công bố điểm bài lab (`POST /v1/labs/{labId}/publish`). Theo đúng lộ trình môn học, cột mốc này chưa thực thi code C++ của sinh viên trong Sandbox, chưa gọi mô hình LLM và chưa xây dựng giao diện người dùng đầy đủ.
 
 **Tài liệu trọng tâm trong Repository:**
+- **Hướng dẫn khởi chạy Toàn diện (Database, Backend, Frontend): [`README_RUN.md`](README_RUN.md)**
 - Báo cáo tổng hợp bằng chứng nộp bài: [`PA2.md`](PA2.md)
 - Báo cáo tự đánh giá theo 7 tiêu chí Rubric: [`SELF_ASSESSMENT_REPORT.md`](SELF_ASSESSMENT_REPORT.md)
 - Quy tắc làm việc cho AI Agent: [`AGENTS.md`](AGENTS.md) & [`CLAUDE.md`](CLAUDE.md)

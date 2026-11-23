@@ -7,12 +7,12 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "start": "node scripts/mvnw.mjs spring-boot:run",
-    "lint": "node scripts/mvnw.mjs -B -ntp checkstyle:check",
-    "format:check": "node scripts/mvnw.mjs -B -ntp spotless:check",
-    "format": "node scripts/mvnw.mjs -B -ntp spotless:apply",
-    "typecheck": "node scripts/mvnw.mjs -B -ntp test-compile",
-    "test": "node scripts/mvnw.mjs -B -ntp test",
+    "start": "node scripts/gradlew.mjs bootRun",
+    "lint": "node scripts/gradlew.mjs --no-daemon checkstyleMain checkstyleTest",
+    "format:check": "node scripts/gradlew.mjs --no-daemon spotlessCheck",
+    "format": "node scripts/gradlew.mjs --no-daemon spotlessApply",
+    "typecheck": "node scripts/gradlew.mjs --no-daemon testClasses",
+    "test": "node scripts/gradlew.mjs --no-daemon test",
     "sec:scan": "node scripts/secret-scan.mjs",
     "check": "npm run sec:scan && npm run lint && npm run format:check && npm run typecheck && npm test"
   }

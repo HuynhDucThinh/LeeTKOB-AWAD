@@ -1,5 +1,8 @@
 package vn.edu.hcmus.leetkob.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.time.Clock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -15,6 +18,15 @@ public class AppConfig {
   @ConditionalOnMissingBean(Clock.class)
   public Clock systemClock() {
     return Clock.systemUTC();
+  }
+
+  @Bean
+  @ConditionalOnMissingBean(ObjectMapper.class)
+  public ObjectMapper objectMapper() {
+    ObjectMapper mapper = new ObjectMapper();
+    mapper.registerModule(new JavaTimeModule());
+    mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    return mapper;
   }
 
   /**
