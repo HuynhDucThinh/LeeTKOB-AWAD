@@ -1,7 +1,7 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { API_BASE_URL, API_ENDPOINTS } from '@/config/constants'
+import { authService } from '@/services/authService'
 import { useAuthStore } from '@/stores/authStore'
-import type { LoginResponse } from '@/types/auth'
 import type { ProblemDetail } from '@/types/problem'
 
 export const apiClient = axios.create({
@@ -74,13 +74,12 @@ apiClient.interceptors.response.use(
       isRefreshing = true
 
       try {
-        const refreshResponse = await axios.post<LoginResponse>(
-          `${API_BASE_URL}${API_ENDPOINTS.auth.refresh}`,
-          {},
-          { withCredentials: true },
-        )
+        const refreshed = await authService.refreshToken()
+        if (!refreshed) {
+          throw new Error('Session refresh failed')
+        }
 
-        const { user, accessToken } = refreshResponse.data
+        const { user, accessToken } = refreshed
         useAuthStore.getState().setAuth(user, accessToken)
         processQueue(null, accessToken)
 

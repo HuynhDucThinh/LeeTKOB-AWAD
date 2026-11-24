@@ -44,7 +44,6 @@ const roleHome: Record<UserRole, string> = {
 export function DashboardLayout() {
   const user = useAuthStore((state) => state.user)
   const clearAuth = useAuthStore((state) => state.clearAuth)
-  const setAuth = useAuthStore((state) => state.setAuth)
   const { dark, toggleTheme } = useThemeStore()
   const [version, setVersion] = useState<VersionInfo | null>(null)
   const location = useLocation()
@@ -63,17 +62,6 @@ export function DashboardLayout() {
     .split('/')
     .filter(Boolean)
     .map((part) => part.replace(/-/g, ' '))
-
-  const switchRole = (role: UserRole) => {
-    const ids: Record<UserRole, string> = { admin: 'admin-1', ta: 'ta-own', student: 'student-1' }
-    void authService
-      .login(ids[role], 'demo')
-      .then(({ user: nextUser, accessToken }) => {
-        setAuth(nextUser, accessToken)
-        navigate(roleHome[role])
-      })
-      .catch(() => undefined)
-  }
 
   return (
     <div className={cn('min-h-screen text-slate-800', dark && 'dark')}>
@@ -151,20 +139,6 @@ export function DashboardLayout() {
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <div className="hidden rounded-full border border-white bg-white/80 p-1 shadow-sm sm:flex">
-              {(['admin', 'ta', 'student'] as UserRole[]).map((role) => (
-                <button
-                  key={role}
-                  onClick={() => switchRole(role)}
-                  className={cn(
-                    'rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide',
-                    user.role === role ? 'bg-slate-950 text-lime-300' : 'text-slate-400',
-                  )}
-                >
-                  {role}
-                </button>
-              ))}
-            </div>
             <button onClick={toggleTheme} className="icon-button" aria-label="Toggle theme">
               {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
             </button>

@@ -9,17 +9,10 @@ import type { ProblemDetail } from '@/types/problem'
 import type { UserRole } from '@/types/auth'
 
 const homeByRole: Record<UserRole, string> = { admin: '/admin/classes', ta: '/ta/labs', student: '/student/labs' }
-const accounts = [
-  { email: 'admin@leetkob.edu', password: 'Admin@123', label: 'Admin' },
-  { email: 'ta1@leetkob.edu', password: 'Ta1@1234', label: 'TA Class 10' },
-  { email: 'ta2@leetkob.edu', password: 'Ta2@1234', label: 'TA Class 20' },
-  { email: 'student1@leetkob.edu', password: 'Student1@123', label: 'Student 1' },
-  { email: 'student2@leetkob.edu', password: 'Student2@123', label: 'Student 2' },
-]
 
 export function AuthPage() {
-  const [email, setEmail] = useState('ta1@leetkob.edu')
-  const [password, setPassword] = useState('Ta1@1234')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [problem, setProblem] = useState<ProblemDetail | null>(null)
@@ -53,13 +46,9 @@ export function AuthPage() {
         {problem && <div className="mt-4"><ProblemBanner problem={problem} /></div>}
         <form className="mt-6 space-y-3.5" onSubmit={(event) => { event.preventDefault(); void login() }}>
           <label className="block text-xs font-semibold text-slate-700">Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-lime-400 focus:ring-4 focus:ring-lime-100" placeholder="Enter your email" /></label>
-          <label className="block text-xs font-semibold text-slate-700">Password<div className="relative mt-1.5"><input type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-11 text-sm text-slate-900 outline-none transition focus:border-lime-400 focus:ring-4 focus:ring-lime-100" /><button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-lime-700">{showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button></div></label>
+          <label className="block text-xs font-semibold text-slate-700">Password<div className="relative mt-1.5"><input type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-11 text-sm text-slate-900 outline-none transition focus:border-lime-400 focus:ring-4 focus:ring-lime-100" placeholder="Enter your password" /><button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-lime-700">{showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button></div></label>
           <button disabled={loading} className="primary-button w-full justify-center">{loading ? <><LoaderCircle className="size-4 animate-spin" /> Signing in...</> : <>Sign In <ArrowRight className="size-4" /></>}</button>
         </form>
-        <div className="mt-5 border-t border-slate-100 pt-4">
-          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Test accounts</span>
-          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5">{accounts.map((account) => <button key={account.email} type="button" onClick={() => { setEmail(account.email); setPassword(account.password); void login(account.email, account.password) }} className="text-[11px] font-semibold text-slate-500 underline decoration-slate-300 underline-offset-4 hover:text-lime-700">{account.label}</button>)}</div>
-        </div>
         <p className="mt-5 flex items-center gap-1.5 text-[10px] text-slate-400"><ShieldCheck className="size-3" /> Authenticated via Spring Boot & PostgreSQL</p>
       </section>
     </div>
