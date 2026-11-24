@@ -132,3 +132,21 @@
 - **Rejected (Đã từ chối):**
   - Từ chối giữ bộ boilerplate Redux/Auth cũ hoặc để `localStorage` lưu access token.
   - Từ chối import trực tiếp `mockData.ts` vào trong các `pages/` hoặc `components/`; mọi truy cập dữ liệu bắt buộc đi qua tầng `services/` và `hooks/`.
+
+---
+
+## A15 — Triển khai Admin, Classes, Labs (`T1`) & Version theo Quy trình Tests-First (`feat/pa3-admin-classes-labs`)
+
+- **Thành viên thực hiện:** Trà Văn Sỹ (`23120197` — TV1) · **Công cụ AI:** Antigravity.
+- **Observed (Vấn đề thực tế gặp phải khi kiểm chứng trên nền PR #20 JPA refactor):**
+  1. Trong quá trình triển khai sau khi kéo PR #20 (`refactor/jpa-entities-yml`), entity `LlmCallLog` ánh xạ quan hệ `@ManyToOne private Lab lab;` thay vì cột phẳng `labId`. Khi viết truy vấn tổng chi phí `sumCostUsdByLabId` bằng `WHERE l.labId = :labId`, toàn bộ 30 integration/contract tests thất bại ngay lúc khởi tạo Spring Context với `org.hibernate.query.sqm.UnknownPathException`.
+  2. Entity `ClassRoom` cố tình giữ `@Id` không có `@GeneratedValue` để `DemoAccountSeeder` chèn tường minh lớp `10` và `20`; nếu thêm `@GeneratedValue(IDENTITY)` vào `ClassRoom` sẽ làm hỏng seeder khi Hibernate từ chối ID gán tay.
+  3. Khi cập nhật danh sách thành viên lớp (`PUT /v1/admin/classes/{id}/members`) hoặc cập nhật test/constraints của bài lab (`PUT /v1/labs/{id}`), việc xóa và chèn lại các bản ghi có khóa chính phức hợp (`ClassMemberId`, `TaClassId`, `LabConstraintId`) trong cùng giao dịch JPA yêu cầu `flush()` ngay sau `deleteBy...` để tránh xung đột thứ tự SQL `INSERT` trước `DELETE`.
+- **Changed (Quyết định triển khai & khắc phục):**
+  - **Commit 1 (`test(backend)`):** Viết trước 7 bài kiểm thử tích hợp trong `AdminClassesAndLabsIntegrationTest` phủ toàn bộ RBAC (`401`/`403` RFC 9457), đồng bộ 2 bảng `class_members` ↔ `ta_classes`, cô lập lớp `T1` (`404 not-found` giống hệt lab không tồn tại cho TA/SV lớp ngoài), lọc `isSample = true` cho sinh viên, và `GET /v1/version`; xác nhận 7/7 test đỏ trước khi viết code chính.
+  - **Commit 2 (`feat(backend)`):** Cài đặt `AdminController`, `ClassController`, `LabController`, `VersionController`, `AdminServiceImpl`, `LabServiceImpl` và các JPA repository; sửa JPQL `LlmCallLogRepository` sang `l.lab.id = :labId`, tính `nextId = findMaxId() + 1` trong `AdminServiceImpl.createClass` để tương thích tuyệt đối cả H2 lẫn PostgreSQL mà không sửa `ClassRoom` entity, và gọi `flush()` sau xóa khóa chính phức hợp. Bổ sung xử lý RFC 9457 cho `HttpMessageNotReadableException` (`400 invalid-json`) và `MethodArgumentTypeMismatchException` (`404 not-found`) trên `/v1/**`.
+  - **Commit 3 (`feat(frontend)`):** Bật API thật trong `adminService.ts`, `classService.ts`, `labService.ts`, `versionService.ts`, giữ nguyên thư mục `mock/` cho các service của TV2/PR 1B để không làm gãy build song song.
+- **Rejected (Đã từ chối):**
+  - Từ chối sửa `ClassRoom` sang `@GeneratedValue(IDENTITY)` vì sẽ xung đột với `DemoAccountSeeder.ensureClass(10/20, ...)`.
+  - Từ chối trả `403` khi TA lớp khác truy cập `GET/PUT /v1/labs/{id}` hoặc `POST /v1/labs` cho lớp ngoài — bắt buộc trả `404 not-found` cùng cấu trúc RFC 9457 như tài nguyên không tồn tại để chống rò rỉ thông tin (`T1`).
+  - Từ chối xóa `frontend/src/services/mock/` ở PR 1A khi `submissionService.ts` (TV2) và `review/publish/appealService.ts` (PR 1B) vẫn đang cần biên dịch độc lập.
