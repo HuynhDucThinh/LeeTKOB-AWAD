@@ -37,6 +37,22 @@ public enum ProblemKind {
       503,
       "Publication unavailable",
       "Publication storage is temporarily busy; retry shortly."),
+  DEADLINE_PASSED(
+      "deadline-passed",
+      409,
+      "Deadline passed",
+      "The submission deadline for this lab has already passed."),
+  APPEAL_BEFORE_PUBLISH(
+      "appeal-before-publish",
+      409,
+      "Appeal unavailable",
+      "Appeals are available only after lab marks have been published."),
+  APPEAL_ALREADY_EXISTS(
+      "appeal-already-exists",
+      409,
+      "Appeal already exists",
+      "An appeal for this submission constraint already exists."),
+  CONFLICT("conflict", 409, "Conflict", "The request conflicts with the current resource state."),
   INTERNAL("internal", 500, "Internal error", "The request could not be completed.");
 
   private final String slug;

@@ -35,4 +35,12 @@ public class ClassMembershipRepository {
         userId,
         memberRole);
   }
+
+  public void ensureTaClass(String taEmail, int classId) {
+    jdbcTemplate.update(
+        "INSERT INTO ta_classes (ta_id, class_id) VALUES (?, ?) "
+            + "ON CONFLICT (ta_id, class_id) DO NOTHING",
+        taEmail,
+        classId);
+  }
 }

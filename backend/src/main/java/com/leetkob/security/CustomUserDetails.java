@@ -50,6 +50,10 @@ public class CustomUserDetails implements UserDetails, OidcUser {
     return user.getEmail();
   }
 
+  public String getRole() {
+    return user.getRole();
+  }
+
   // OidcUser methods
   @Override
   public Map<String, Object> getClaims() {

@@ -1,8 +1,17 @@
 package com.leetkob.exceptions;
 
 import com.leetkob.dtos.ApiResponse;
+import com.leetkob.exceptions.problem.ProblemException;
+import com.leetkob.exceptions.problem.ProblemKind;
+import com.leetkob.exceptions.problem.ProblemResponseWriter;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -10,9 +19,36 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
+@Order(Ordered.HIGHEST_PRECEDENCE)
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
+
+  private final ProblemResponseWriter problemResponseWriter;
+
+  @ExceptionHandler(ProblemException.class)
+  public void handleProblemException(
+      ProblemException ex, HttpServletRequest request, HttpServletResponse response)
+      throws IOException {
+    String uri = request.getRequestURI();
+    String instance = (uri != null && uri.startsWith("/v1/")) ? uri : "/v1";
+    problemResponseWriter.writeProblem(request, response, ex.kind(), ex.errors(), instance);
+  }
+
+  @ExceptionHandler(NoResourceFoundException.class)
+  public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(
+      NoResourceFoundException ex, HttpServletRequest request, HttpServletResponse response)
+      throws IOException {
+    String uri = request.getRequestURI();
+    if (uri != null && uri.startsWith("/v1/")) {
+      problemResponseWriter.writeProblem(request, response, ProblemKind.NOT_FOUND, null, "/v1");
+      return null;
+    }
+    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+        .body(ApiResponse.error("Resource not found"));
+  }
 
   @ExceptionHandler(ResourceNotFoundException.class)
   public ResponseEntity<ApiResponse<Void>> handleResourceNotFound(ResourceNotFoundException ex) {
@@ -69,7 +105,13 @@ public class GlobalExceptionHandler {
   }
 
   @ExceptionHandler(Exception.class)
-  public ResponseEntity<ApiResponse<Void>> handleGenericException(Exception ex) {
+  public ResponseEntity<ApiResponse<Void>> handleGenericException(
+      Exception ex, HttpServletRequest request, HttpServletResponse response) throws IOException {
+    String uri = request.getRequestURI();
+    if (uri != null && uri.startsWith("/v1/")) {
+      problemResponseWriter.writeProblem(request, response, ProblemKind.INTERNAL, null, uri);
+      return null;
+    }
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
         .body(ApiResponse.error("Internal server error: " + ex.getMessage()));
   }

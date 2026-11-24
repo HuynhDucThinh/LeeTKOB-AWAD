@@ -41,6 +41,9 @@ public class DemoAccountSeeder implements ApplicationRunner {
     classMembershipRepository.ensureMember(20, ta2.getId(), "ta");
     classMembershipRepository.ensureMember(10, student1.getId(), "student");
     classMembershipRepository.ensureMember(10, student2.getId(), "student");
+
+    classMembershipRepository.ensureTaClass(ta1.getEmail(), 10);
+    classMembershipRepository.ensureTaClass(ta2.getEmail(), 20);
   }
 
   private User ensureUser(String email, String fullName, String role, String rawPassword) {
