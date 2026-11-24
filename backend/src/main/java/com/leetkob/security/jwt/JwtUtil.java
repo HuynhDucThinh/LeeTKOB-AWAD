@@ -14,14 +14,24 @@ import org.springframework.stereotype.Component;
 @Component
 public class JwtUtil {
 
+  private static final int MIN_SECRET_BYTES = 32;
+
   private final SecretKey key;
   private final long expirationMs;
 
   public JwtUtil(
-      @Value("${jwt.secret:defaultSecretKeyWhichIsAtLeast32BytesLongForHS256Algorithm!}")
-          String secret,
-      @Value("${jwt.expiration-ms:86400000}") long expirationMs) {
-    this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+      @Value("${jwt.secret:${JWT_SECRET:}}") String secret,
+      @Value("${jwt.expiration-ms:${JWT_EXPIRATION_MS:86400000}}") long expirationMs) {
+    if (secret == null || secret.isBlank()) {
+      throw new IllegalArgumentException(
+          "JWT_SECRET (jwt.secret) must be configured and at least 32 bytes long.");
+    }
+    byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
+    if (secretBytes.length < MIN_SECRET_BYTES) {
+      throw new IllegalArgumentException(
+          "JWT_SECRET (jwt.secret) must be at least 32 bytes long for HS256.");
+    }
+    this.key = Keys.hmacShaKeyFor(secretBytes);
     this.expirationMs = expirationMs;
   }
 

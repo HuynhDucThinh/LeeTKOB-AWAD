@@ -70,7 +70,10 @@ public class PublishController extends OncePerRequestFilter {
   @Override
   protected boolean shouldNotFilter(HttpServletRequest request) {
     String path = request.getRequestURI();
-    return path == null || !path.startsWith("/v1/");
+    if (path == null || !path.startsWith("/v1/labs/")) {
+      return true;
+    }
+    return !(path.endsWith("/publish") || path.endsWith("/publish/"));
   }
 
   @Override

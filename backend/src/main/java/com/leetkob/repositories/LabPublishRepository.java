@@ -66,7 +66,7 @@ public class LabPublishRepository {
             """
             SELECT COUNT(*) FROM review_items r
             JOIN counted_submissions s ON s.id = r.submission_id
-            WHERE s.lab_id = ? AND r.decision IS NULL
+            WHERE s.lab_id = ? AND r.in_queue = TRUE AND r.decision IS NULL
             """,
             Integer.class,
             labId);
