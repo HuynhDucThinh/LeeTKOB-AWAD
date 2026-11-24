@@ -1,4 +1,4 @@
-package com.leetkob.services.user;
+package com.leetkob.services.impl;
 
 import com.leetkob.dtos.auth.LoginRequest;
 import com.leetkob.dtos.auth.SignupRequest;
@@ -13,6 +13,7 @@ import com.leetkob.repositories.ClassMembershipRepository;
 import com.leetkob.repositories.UserRepository;
 import com.leetkob.security.CustomUserDetails;
 import com.leetkob.security.jwt.JwtUtil;
+import com.leetkob.services.AuthService;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class AuthService {
+public class AuthServiceImpl implements AuthService {
 
   private final UserRepository userRepository;
   private final ClassMembershipRepository classMembershipRepository;
@@ -35,6 +36,7 @@ public class AuthService {
   private final JwtUtil jwtUtil;
   private final UserMapper userMapper;
 
+  @Override
   @Transactional
   public AuthResult signup(SignupRequest request) {
     String normalizedEmail = request.getEmail().toLowerCase().trim();
@@ -54,6 +56,7 @@ public class AuthService {
     return new AuthResult(toResponseWithClasses(savedUser, List.of()), token);
   }
 
+  @Override
   @Transactional(readOnly = true)
   public AuthResult login(LoginRequest request) {
     Authentication authentication;
@@ -79,6 +82,7 @@ public class AuthService {
     return new AuthResult(toResponseWithClasses(user, classIds), token);
   }
 
+  @Override
   @Transactional(readOnly = true)
   public AuthResult refreshSession(UUID userId) {
     User user =
@@ -90,6 +94,7 @@ public class AuthService {
     return new AuthResult(toResponseWithClasses(user, classIds), token);
   }
 
+  @Override
   @Transactional(readOnly = true)
   public UserResponse getUserById(UUID userId) {
     User user =
@@ -105,6 +110,4 @@ public class AuthService {
     response.setClassIds(classIds);
     return response;
   }
-
-  public record AuthResult(UserResponse userResponse, String token) {}
 }

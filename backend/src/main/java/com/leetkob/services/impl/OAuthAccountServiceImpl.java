@@ -1,10 +1,11 @@
-package com.leetkob.services.user;
+package com.leetkob.services.impl;
 
 import com.leetkob.entities.OauthAccount;
 import com.leetkob.entities.User;
 import com.leetkob.enums.OauthProvider;
 import com.leetkob.repositories.OauthAccountRepository;
 import com.leetkob.repositories.UserRepository;
+import com.leetkob.services.OAuthAccountService;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -12,11 +13,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class OAuthAccountService {
+public class OAuthAccountServiceImpl implements OAuthAccountService {
 
   private final UserRepository userRepository;
   private final OauthAccountRepository oauthAccountRepository;
 
+  @Override
   @Transactional
   public User findOrCreateOAuthUser(
       String email, String name, String pictureUrl, OauthProvider provider, String providerUserId) {

@@ -1,4 +1,4 @@
-package com.leetkob.services.publish;
+package com.leetkob.services.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -9,12 +9,18 @@ import com.leetkob.exceptions.problem.ProblemException;
 import com.leetkob.exceptions.problem.ProblemKind;
 import com.leetkob.repositories.LabPublishRepository;
 import com.leetkob.security.publish.Principal;
+import com.leetkob.services.PublishService;
+import jakarta.persistence.EntityExistsException;
+import jakarta.persistence.LockTimeoutException;
+import jakarta.persistence.PessimisticLockException;
 import java.sql.SQLTransientException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.dao.QueryTimeoutException;
@@ -26,13 +32,14 @@ import org.springframework.transaction.support.TransactionTemplate;
  * Business service orchestrating atomic lab mark publication and idempotency guarantees.
  *
  * <p>Serialisation is done by the database, not by the JVM (AI-LOG A11): every publish transaction
- * takes a row lock on its own {@code labs} row ({@code SELECT ... FOR UPDATE}). Requests for
- * different labs never wait on each other, and when the lock cannot be acquired within the database
- * lock timeout the caller receives {@code 503 publication-unavailable} (contract §2). The primary
- * key on {@code publications(lab_id)} is the final idempotency guard.
+ * takes a pessimistic write row lock on its own {@code labs} row ({@code SELECT ... FOR UPDATE}).
+ * Requests for different labs never wait on each other, and when the lock cannot be acquired within
+ * the database lock timeout the caller receives {@code 503 publication-unavailable} (contract §2).
+ * The primary key on {@code publications(lab_id)} is the final idempotency guard.
  */
 @Service
-public class PublishService {
+@RequiredArgsConstructor
+public class PublishServiceImpl implements PublishService {
 
   private static final DateTimeFormatter ISO_MILLIS =
       DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC);
@@ -41,16 +48,7 @@ public class PublishService {
   private final TransactionTemplate transactionTemplate;
   private final ObjectMapper objectMapper;
 
-  public PublishService(
-      LabPublishRepository labPublishRepository,
-      TransactionTemplate transactionTemplate,
-      ObjectMapper objectMapper) {
-    this.labPublishRepository = labPublishRepository;
-    this.transactionTemplate = transactionTemplate;
-    this.objectMapper = objectMapper;
-  }
-
-  /** Ownership check performed before the request body is read (contract §4.2 step 3). */
+  @Override
   public void assertAccess(int labId, Principal principal) {
     requireOwnedLab(labId, principal);
   }
@@ -61,13 +59,14 @@ public class PublishService {
         .orElseThrow(() -> new ProblemException(ProblemKind.NOT_FOUND));
   }
 
+  @Override
   public PublishResult publish(int labId, Principal principal, Instant now) {
     try {
       return runInTransaction(labId, principal, now);
     } catch (ProblemException e) {
       throw e;
     } catch (RuntimeException e) {
-      if (hasCause(e, DuplicateKeyException.class)) {
+      if (isConcurrentDuplicateInsert(e)) {
         // Another node committed the first publication between our replay check and our insert.
         // Run once more: this time the transaction takes the replay branch.
         try {
@@ -87,6 +86,12 @@ public class PublishService {
         status -> executePublishInTransaction(labId, principal, now));
   }
 
+  private static boolean isConcurrentDuplicateInsert(RuntimeException e) {
+    return hasCause(e, DuplicateKeyException.class)
+        || hasCause(e, EntityExistsException.class)
+        || hasCause(e, DataIntegrityViolationException.class);
+  }
+
   /**
    * Lock wait timeouts become {@code 503 publication-unavailable}; anything else is {@code 500}.
    * The whole cause chain is inspected because the timeout may arrive wrapped (see {@link
@@ -94,6 +99,8 @@ public class PublishService {
    */
   private static ProblemException translate(RuntimeException e) {
     if (hasCause(e, PessimisticLockingFailureException.class)
+        || hasCause(e, PessimisticLockException.class)
+        || hasCause(e, LockTimeoutException.class)
         || hasCause(e, QueryTimeoutException.class)
         || hasCause(e, SQLTransientException.class)) {
       return new ProblemException(ProblemKind.PUBLICATION_UNAVAILABLE);
