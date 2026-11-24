@@ -26,12 +26,18 @@ public class JwtUtil {
   }
 
   public String generateToken(UUID userId, String email) {
+    return generateToken(userId, email, "student");
+  }
+
+  public String generateToken(UUID userId, String email, String role) {
     Date now = new Date();
     Date expiryDate = new Date(now.getTime() + expirationMs);
+    String safeRole = (role == null || role.isBlank()) ? "student" : role.trim().toLowerCase();
 
     return Jwts.builder()
         .subject(userId.toString())
         .claim("email", email)
+        .claim("role", safeRole)
         .issuedAt(now)
         .expiration(expiryDate)
         .signWith(key)
@@ -46,6 +52,12 @@ public class JwtUtil {
   public String getEmailFromToken(String token) {
     Claims claims = getClaims(token);
     return claims.get("email", String.class);
+  }
+
+  public String getRoleFromToken(String token) {
+    Claims claims = getClaims(token);
+    String role = claims.get("role", String.class);
+    return (role == null || role.isBlank()) ? "student" : role;
   }
 
   public boolean validateToken(String token) {

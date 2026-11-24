@@ -9,9 +9,11 @@ import com.leetkob.exceptions.InvalidCredentialsException;
 import com.leetkob.exceptions.OAuthAccountException;
 import com.leetkob.exceptions.ResourceNotFoundException;
 import com.leetkob.mappers.UserMapper;
+import com.leetkob.repositories.ClassMembershipRepository;
 import com.leetkob.repositories.UserRepository;
 import com.leetkob.security.CustomUserDetails;
 import com.leetkob.security.jwt.JwtUtil;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -27,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
 
   private final UserRepository userRepository;
+  private final ClassMembershipRepository classMembershipRepository;
   private final PasswordEncoder passwordEncoder;
   private final AuthenticationManager authenticationManager;
   private final JwtUtil jwtUtil;
@@ -34,20 +37,24 @@ public class AuthService {
 
   @Transactional
   public AuthResult signup(SignupRequest request) {
-    if (userRepository.existsByEmail(request.getEmail())) {
+    String normalizedEmail = request.getEmail().toLowerCase().trim();
+    if (userRepository.existsByEmail(normalizedEmail)) {
       throw new EmailAlreadyExistsException("Email is already registered");
     }
 
     User user = userMapper.toUser(request);
-    user.setEmail(request.getEmail().toLowerCase().trim());
+    user.setEmail(normalizedEmail);
+    user.setRole("student");
     user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
 
     User savedUser = userRepository.save(user);
-    String token = jwtUtil.generateToken(savedUser.getId(), savedUser.getEmail());
+    String token =
+        jwtUtil.generateToken(savedUser.getId(), savedUser.getEmail(), savedUser.getRole());
 
-    return new AuthResult(userMapper.toUserResponse(savedUser), token);
+    return new AuthResult(toResponseWithClasses(savedUser, List.of()), token);
   }
 
+  @Transactional(readOnly = true)
   public AuthResult login(LoginRequest request) {
     Authentication authentication;
     try {
@@ -67,8 +74,20 @@ public class AuthService {
           "Account was created via Google OAuth. Please sign in with Google.");
     }
 
-    String token = jwtUtil.generateToken(user.getId(), user.getEmail());
-    return new AuthResult(userMapper.toUserResponse(user), token);
+    List<Integer> classIds = classMembershipRepository.findClassIdsByUserId(user.getId());
+    String token = jwtUtil.generateToken(user.getId(), user.getEmail(), user.getRole());
+    return new AuthResult(toResponseWithClasses(user, classIds), token);
+  }
+
+  @Transactional(readOnly = true)
+  public AuthResult refreshSession(UUID userId) {
+    User user =
+        userRepository
+            .findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+    List<Integer> classIds = classMembershipRepository.findClassIdsByUserId(user.getId());
+    String token = jwtUtil.generateToken(user.getId(), user.getEmail(), user.getRole());
+    return new AuthResult(toResponseWithClasses(user, classIds), token);
   }
 
   @Transactional(readOnly = true)
@@ -77,7 +96,14 @@ public class AuthService {
         userRepository
             .findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
-    return userMapper.toUserResponse(user);
+    List<Integer> classIds = classMembershipRepository.findClassIdsByUserId(userId);
+    return toResponseWithClasses(user, classIds);
+  }
+
+  private UserResponse toResponseWithClasses(User user, List<Integer> classIds) {
+    UserResponse response = userMapper.toUserResponse(user);
+    response.setClassIds(classIds);
+    return response;
   }
 
   public record AuthResult(UserResponse userResponse, String token) {}
