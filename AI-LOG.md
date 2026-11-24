@@ -113,3 +113,22 @@
 - **Observed:** Khi loại bỏ các hàm hook phục vụ test khỏi `PublishService` (`src/main`) trên [PR #6](https://github.com/HuynhDucThinh/LeeTKOB-AWAD/pull/6) để làm sạch mã nguồn chính, các lệnh gọi hook cũ trong `PublishEndpointContractTest.java` không còn tồn tại nên cần chuyển sang cơ chế dựng tình huống bằng tài nguyên thật trong cùng đơn vị thay đổi để đảm bảo mã nguồn biên dịch (`typecheck`) thành công.
 - **Changed:** Theo quy trình tái cấu trúc (refactoring) của nhóm trên commit [`d191b83`](https://github.com/HuynhDucThinh/LeeTKOB-AWAD/pull/6/commits/d191b83), phần khởi tạo tình huống (test setup) của 3 bài test được chuyển sang dùng Mockito spy, ràng buộc `ALTER TABLE ... ADD CONSTRAINT` thật và kết nối JDBC giữ khóa dòng thật (`SELECT ... FOR UPDATE`). Toàn bộ các câu lệnh kiểm tra kết quả (`assertEquals`, `assertProblem`, `assertNoPublication`) của hợp đồng được giữ nguyên tuyệt đối, không xóa hay nới lỏng bất kỳ điều kiện nào, đồng thời bổ sung thêm bài test cô lập khóa giữa các bài lab (`lockOnOneLabDoesNotBlockPublishingAnotherLab`).
 - **Rejected:** Từ chối việc xóa bỏ hoặc hạ thấp bất kỳ câu lệnh `assert` nào của bộ kiểm thử hợp đồng khi thực hiện tái cấu trúc tầng dịch vụ.
+
+
+---
+
+# Nhật ký Cộng tác với Trợ lý AI — Cột mốc `PA#3`
+
+## A14 — Chuẩn hóa Giao diện Frontend từ Figma & Bổ sung Đa lớp Học (`feat/frontend-ui`)
+
+- **Công cụ AI:** Figma AI (sinh giao diện từ đặc tả) + Antigravity (chuẩn hóa kiến trúc `frontend/`, tách tầng services/hooks/stores, đồng bộ đa lớp).
+- **Observed (Vấn đề phát hiện khi rà soát bản sinh lần đầu):**
+  1. Ở bản sinh đầu tiên từ Figma AI, màn hình của TA (`TaLabsPage`) và Student (`StudentLabsPage`) chỉ hiển thị danh sách lab phẳng và chưa có giao diện chọn/lọc theo nhiều lớp học (`ta_classes` / `student_classes`), dễ gây hiểu nhầm mỗi tài khoản chỉ thuộc 1 lớp duy nhất.
+  2. Bản xuất từ Figma sử dụng cấu trúc đơn giản chưa đồng bộ hoàn toàn với quy chuẩn bảo mật token trong RAM (`authStore` + `isInitializing` hydration), Axios dual interceptor (`401` `failedQueue`), và chuẩn hóa lỗi **RFC 9457 (`ProblemDetail`)**.
+- **Changed (Quyết định chỉnh sửa và chuẩn hóa):**
+  - Bổ sung màn hình `MyClassesPage` (`/ta/classes`, `/student/classes`), bộ lọc `classId` trên `TaLabsPage` và `StudentLabsPage`, tự động điền sẵn `classId` khi tạo lab mới, và cập nhật `mockData.ts` cho `ta-own` và `student-1` thuộc nhiều lớp (trong khi `ta-foreign` vẫn cô lập ở lớp 20).
+  - Chuẩn hóa toàn bộ `LeeTKOB-AWAD/frontend/` theo **Modular Component-Service Architecture**: dùng Zustand memory-only `authStore`, Axios `apiClient` có sẵn request/response interceptor, tách `services/*Service.ts` viết sẵn lời gọi API thật (comment lại để thành viên khác bật khi backend sẵn sàng) kèm stateful mock để bấm thử toàn bộ luồng.
+  - Kiểm chứng biên dịch tĩnh và đóng gói bằng `npm run build` (`tsc -b && vite build`) thành công 0 lỗi, và `npm run sec:scan` đạt 0 secret.
+- **Rejected (Đã từ chối):**
+  - Từ chối giữ bộ boilerplate Redux/Auth cũ hoặc để `localStorage` lưu access token.
+  - Từ chối import trực tiếp `mockData.ts` vào trong các `pages/` hoặc `components/`; mọi truy cập dữ liệu bắt buộc đi qua tầng `services/` và `hooks/`.
