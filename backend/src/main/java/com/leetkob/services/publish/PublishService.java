@@ -1,14 +1,14 @@
-package com.leetkob.publish.service;
+package com.leetkob.services.publish;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.leetkob.publish.domain.LabRecord;
-import com.leetkob.publish.dto.PublicationReceipt;
-import com.leetkob.publish.dto.PublishResult;
-import com.leetkob.publish.exception.ProblemException;
-import com.leetkob.publish.exception.ProblemKind;
-import com.leetkob.publish.repository.LabPublishRepository;
-import com.leetkob.publish.security.Principal;
+import com.leetkob.domain.LabRecord;
+import com.leetkob.dtos.publish.PublicationReceipt;
+import com.leetkob.dtos.publish.PublishResult;
+import com.leetkob.exceptions.problem.ProblemException;
+import com.leetkob.exceptions.problem.ProblemKind;
+import com.leetkob.repositories.LabPublishRepository;
+import com.leetkob.security.publish.Principal;
 import java.sql.SQLTransientException;
 import java.time.Instant;
 import java.time.ZoneOffset;

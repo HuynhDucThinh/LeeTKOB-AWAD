@@ -1,4 +1,4 @@
-package com.leetkob.publish.security;
+package com.leetkob.security.publish;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

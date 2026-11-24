@@ -1,4 +1,4 @@
-package com.leetkob.publish.exception;
+package com.leetkob.exceptions.problem;
 
 public enum ProblemKind {
   INVALID_JSON("invalid-json", 400, "Malformed JSON", "Request body must be valid UTF-8 JSON."),

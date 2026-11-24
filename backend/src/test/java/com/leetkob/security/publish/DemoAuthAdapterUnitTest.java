@@ -1,4 +1,4 @@
-package com.leetkob.publish.security;
+package com.leetkob.security.publish;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;

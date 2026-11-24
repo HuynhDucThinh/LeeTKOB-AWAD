@@ -1,4 +1,4 @@
-package com.leetkob.publish.dto;
+package com.leetkob.dtos.publish;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 

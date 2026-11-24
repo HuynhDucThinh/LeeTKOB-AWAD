@@ -1,6 +1,6 @@
-package com.leetkob.publish.repository;
+package com.leetkob.repositories;
 
-import com.leetkob.publish.domain.LabRecord;
+import com.leetkob.domain.LabRecord;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
