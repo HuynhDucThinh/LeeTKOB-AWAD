@@ -1,4 +1,4 @@
-package com.leetkob.publish.controller;
+package com.leetkob.controllers;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -8,10 +8,10 @@ import static org.mockito.Mockito.doAnswer;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetkob.LeetKobApplication;
-import com.leetkob.publish.dto.PublicationReceipt;
-import com.leetkob.publish.repository.LabPublishRepository;
-import com.leetkob.publish.security.AuthResolver;
-import com.leetkob.publish.security.Principal;
+import com.leetkob.dtos.publish.PublicationReceipt;
+import com.leetkob.repositories.LabPublishRepository;
+import com.leetkob.security.publish.AuthResolver;
+import com.leetkob.security.publish.Principal;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;

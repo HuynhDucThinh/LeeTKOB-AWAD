@@ -1,4 +1,4 @@
-package com.leetkob.publish.domain;
+package com.leetkob.domain;
 
 import java.util.List;
 

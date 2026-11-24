@@ -1,10 +1,10 @@
-package com.leetkob.publish.config;
+package com.leetkob.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.leetkob.publish.security.AuthResolver;
-import com.leetkob.publish.security.DemoAuthAdapter;
+import com.leetkob.security.publish.AuthResolver;
+import com.leetkob.security.publish.DemoAuthAdapter;
 import java.time.Clock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;

@@ -1,7 +1,7 @@
-package com.leetkob.publish.exception;
+package com.leetkob.exceptions.problem;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.leetkob.publish.dto.FieldErrorItem;
+import com.leetkob.dtos.publish.FieldErrorItem;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;

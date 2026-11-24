@@ -1,17 +1,17 @@
-package com.leetkob.publish.controller;
+package com.leetkob.controllers;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.leetkob.publish.dto.FieldErrorItem;
-import com.leetkob.publish.dto.PublishResult;
-import com.leetkob.publish.exception.ProblemException;
-import com.leetkob.publish.exception.ProblemKind;
-import com.leetkob.publish.exception.ProblemResponseWriter;
-import com.leetkob.publish.security.AuthResolver;
-import com.leetkob.publish.security.Principal;
-import com.leetkob.publish.service.PublishService;
+import com.leetkob.dtos.publish.FieldErrorItem;
+import com.leetkob.dtos.publish.PublishResult;
+import com.leetkob.exceptions.problem.ProblemException;
+import com.leetkob.exceptions.problem.ProblemKind;
+import com.leetkob.exceptions.problem.ProblemResponseWriter;
+import com.leetkob.security.publish.AuthResolver;
+import com.leetkob.security.publish.Principal;
+import com.leetkob.services.publish.PublishService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -65,6 +65,12 @@ public class PublishController extends OncePerRequestFilter {
     this.clock = clock;
     this.objectMapper = objectMapper;
     this.problemResponseWriter = problemResponseWriter;
+  }
+
+  @Override
+  protected boolean shouldNotFilter(HttpServletRequest request) {
+    String path = request.getRequestURI();
+    return path == null || !path.startsWith("/v1/");
   }
 
   @Override

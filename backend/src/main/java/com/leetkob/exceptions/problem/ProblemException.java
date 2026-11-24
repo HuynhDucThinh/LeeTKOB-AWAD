@@ -1,6 +1,6 @@
-package com.leetkob.publish.exception;
+package com.leetkob.exceptions.problem;
 
-import com.leetkob.publish.dto.FieldErrorItem;
+import com.leetkob.dtos.publish.FieldErrorItem;
 import java.util.List;
 
 public class ProblemException extends RuntimeException {

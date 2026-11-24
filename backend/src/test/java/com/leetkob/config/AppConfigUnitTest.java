@@ -1,8 +1,8 @@
-package com.leetkob.publish.config;
+package com.leetkob.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.leetkob.publish.security.AuthResolver;
+import com.leetkob.security.publish.AuthResolver;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
