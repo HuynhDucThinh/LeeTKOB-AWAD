@@ -16,7 +16,8 @@ import com.leetkob.mappers.UserMapper;
 import com.leetkob.repositories.ClassMembershipRepository;
 import com.leetkob.repositories.UserRepository;
 import com.leetkob.security.jwt.JwtUtil;
-import com.leetkob.services.user.AuthService;
+import com.leetkob.services.AuthService;
+import com.leetkob.services.impl.AuthServiceImpl;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -96,7 +97,7 @@ class JwtAndAuthRoleUnitTest {
             });
 
     AuthService service =
-        new AuthService(
+        new AuthServiceImpl(
             userRepository,
             membershipRepository,
             passwordEncoder,
@@ -144,7 +145,7 @@ class JwtAndAuthRoleUnitTest {
                 .build());
 
     AuthService service =
-        new AuthService(
+        new AuthServiceImpl(
             userRepository,
             membershipRepository,
             passwordEncoder,

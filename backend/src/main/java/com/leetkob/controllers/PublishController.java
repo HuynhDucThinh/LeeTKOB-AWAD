@@ -11,7 +11,7 @@ import com.leetkob.exceptions.problem.ProblemKind;
 import com.leetkob.exceptions.problem.ProblemResponseWriter;
 import com.leetkob.security.publish.AuthResolver;
 import com.leetkob.security.publish.Principal;
-import com.leetkob.services.publish.PublishService;
+import com.leetkob.services.PublishService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

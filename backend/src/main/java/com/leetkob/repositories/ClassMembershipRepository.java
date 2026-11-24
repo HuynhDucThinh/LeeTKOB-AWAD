@@ -1,46 +1,53 @@
 package com.leetkob.repositories;
 
+import com.leetkob.entities.ClassMember;
+import com.leetkob.entities.ClassRoom;
+import com.leetkob.entities.TaClass;
+import com.leetkob.entities.ids.ClassMemberId;
+import com.leetkob.entities.ids.TaClassId;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+/** JPA-backed facade managing class rooms, class memberships, and TA ownership assignments. */
 @Repository
 @RequiredArgsConstructor
 public class ClassMembershipRepository {
 
-  private final JdbcTemplate jdbcTemplate;
+  private final ClassRoomRepository classRoomRepository;
+  private final ClassMemberRepository classMemberRepository;
+  private final TaClassRepository taClassRepository;
+  private final UserRepository userRepository;
 
   public List<Integer> findClassIdsByUserId(UUID userId) {
-    return jdbcTemplate.queryForList(
-        "SELECT class_id FROM class_members WHERE user_id = ? ORDER BY class_id",
-        Integer.class,
-        userId);
+    return classMemberRepository.findClassIdsByUserId(userId);
   }
 
   public void ensureClass(int id, String code, String name) {
-    jdbcTemplate.update(
-        "INSERT INTO classes (id, code, name) VALUES (?, ?, ?) ON CONFLICT (id) DO NOTHING",
-        id,
-        code,
-        name);
+    if (!classRoomRepository.existsById(id)) {
+      classRoomRepository.saveAndFlush(ClassRoom.builder().id(id).code(code).name(name).build());
+    }
   }
 
   public void ensureMember(int classId, UUID userId, String memberRole) {
-    jdbcTemplate.update(
-        "INSERT INTO class_members (class_id, user_id, member_role) VALUES (?, ?, ?) "
-            + "ON CONFLICT (class_id, user_id) DO NOTHING",
-        classId,
-        userId,
-        memberRole);
+    ClassMemberId memberId = ClassMemberId.builder().classId(classId).userId(userId).build();
+    if (!classMemberRepository.existsById(memberId)) {
+      ClassMember member =
+          ClassMember.builder()
+              .id(memberId)
+              .classRoom(classRoomRepository.getReferenceById(classId))
+              .user(userRepository.getReferenceById(userId))
+              .memberRole(memberRole)
+              .build();
+      classMemberRepository.saveAndFlush(member);
+    }
   }
 
   public void ensureTaClass(String taEmail, int classId) {
-    jdbcTemplate.update(
-        "INSERT INTO ta_classes (ta_id, class_id) VALUES (?, ?) "
-            + "ON CONFLICT (ta_id, class_id) DO NOTHING",
-        taEmail,
-        classId);
+    TaClassId taClassId = TaClassId.builder().taId(taEmail).classId(classId).build();
+    if (!taClassRepository.existsById(taClassId)) {
+      taClassRepository.saveAndFlush(TaClass.builder().id(taClassId).build());
+    }
   }
 }

@@ -1,104 +1,87 @@
 package com.leetkob.repositories;
 
 import com.leetkob.domain.LabRecord;
+import com.leetkob.entities.CountedSubmission;
+import com.leetkob.entities.Publication;
+import com.leetkob.entities.PublicationAudit;
+import com.leetkob.entities.PublishedMark;
+import com.leetkob.entities.ids.PublishedMarkId;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.util.List;
 import java.util.Optional;
-import org.springframework.jdbc.core.JdbcTemplate;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
-/** Data-access repository encapsulating all SQL operations for lab mark publication. */
+/** JPA-backed data-access repository encapsulating all database operations for lab publication. */
 @Repository
+@RequiredArgsConstructor
 public class LabPublishRepository {
 
-  private final JdbcTemplate jdbcTemplate;
+  private static final List<String> PENDING_JUDGE_STATUSES = List.of("queued", "running");
+  private static final String LAB_PUBLISHED_EVENT = "lab.published";
 
-  public LabPublishRepository(JdbcTemplate jdbcTemplate) {
-    this.jdbcTemplate = jdbcTemplate;
-  }
+  private final LabRepository labRepository;
+  private final PublicationRepository publicationRepository;
+  private final CountedSubmissionRepository countedSubmissionRepository;
+  private final ReviewItemRepository reviewItemRepository;
+
+  @PersistenceContext private EntityManager entityManager;
 
   /**
-   * Takes a row lock on the lab for the rest of the current transaction. Concurrent publishes of
-   * the same lab are serialised by the database; publishes of other labs are not affected.
+   * Takes a pessimistic write row lock on the lab for the rest of the current transaction.
+   * Concurrent publishes of the same lab are serialised by the database; publishes of other labs
+   * are not affected.
    */
   public void lockLabRow(int labId) {
-    jdbcTemplate.queryForList("SELECT id FROM labs WHERE id = ? FOR UPDATE", labId);
+    labRepository.findByIdForUpdate(labId);
   }
 
   public Optional<LabRecord> findOwnedLab(int labId, String taId) {
-    List<LabRecord> rows =
-        jdbcTemplate.query(
-            """
-            SELECT l.id, l.deadline
-            FROM labs l
-            JOIN ta_classes t ON t.class_id = l.class_id
-            WHERE l.id = ? AND t.ta_id = ?
-            """,
-            (rs, rowNum) -> new LabRecord(rs.getInt("id"), rs.getString("deadline")),
-            labId,
-            taId);
-    return rows.stream().findFirst();
+    return labRepository.findOwnedLab(labId, taId);
   }
 
   public Optional<String> findExistingReceipt(int labId) {
-    List<String> existingReceipts =
-        jdbcTemplate.query(
-            "SELECT receipt FROM publications WHERE lab_id = ?",
-            (rs, rowNum) -> rs.getString("receipt"),
-            labId);
-    return existingReceipts.stream().findFirst();
+    return publicationRepository.findById(labId).map(Publication::getReceipt);
   }
 
   public int countPendingJudgeSubmissions(int labId) {
-    Integer count =
-        jdbcTemplate.queryForObject(
-            """
-            SELECT COUNT(*) FROM counted_submissions
-            WHERE lab_id = ? AND judge_status IN ('queued', 'running')
-            """,
-            Integer.class,
-            labId);
-    return count != null ? count : 0;
+    return Math.toIntExact(
+        countedSubmissionRepository.countByLabIdAndJudgeStatusIn(labId, PENDING_JUDGE_STATUSES));
   }
 
   public int countPendingReviewItems(int labId) {
-    Integer count =
-        jdbcTemplate.queryForObject(
-            """
-            SELECT COUNT(*) FROM review_items r
-            JOIN counted_submissions s ON s.id = r.submission_id
-            WHERE s.lab_id = ? AND r.in_queue = TRUE AND r.decision IS NULL
-            """,
-            Integer.class,
-            labId);
-    return count != null ? count : 0;
+    return Math.toIntExact(reviewItemRepository.countPendingInQueueByLabId(labId));
   }
 
   public int countCountedSubmissions(int labId) {
-    Integer count =
-        jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM counted_submissions WHERE lab_id = ?", Integer.class, labId);
-    return count != null ? count : 0;
+    return Math.toIntExact(countedSubmissionRepository.countByLabId(labId));
   }
 
   public void insertPublicationReceipt(int labId, String receiptJson) {
-    jdbcTemplate.update(
-        "INSERT INTO publications (lab_id, receipt) VALUES (?, ?)", labId, receiptJson);
+    entityManager.persist(Publication.builder().labId(labId).receipt(receiptJson).build());
+    entityManager.flush();
   }
 
   public void copyCountedMarksToPublished(int labId) {
-    jdbcTemplate.update(
-        """
-        INSERT INTO published_marks (lab_id, submission_id, score_tenths)
-        SELECT lab_id, id, score_tenths FROM counted_submissions WHERE lab_id = ?
-        """,
-        labId);
+    List<CountedSubmission> submissions = countedSubmissionRepository.findByLabId(labId);
+    for (CountedSubmission submission : submissions) {
+      PublishedMarkId markId =
+          PublishedMarkId.builder().labId(labId).submissionId(submission.getId()).build();
+      entityManager.persist(
+          PublishedMark.builder().id(markId).scoreTenths(submission.getScoreTenths()).build());
+    }
+    entityManager.flush();
   }
 
   public void insertPublicationAudit(int labId, String actorId, String publishedAt) {
-    jdbcTemplate.update(
-        "INSERT INTO publication_audit (lab_id, actor_id, at, event) VALUES (?, ?, ?, 'lab.published')",
-        labId,
-        actorId,
-        publishedAt);
+    entityManager.persist(
+        PublicationAudit.builder()
+            .labId(labId)
+            .actorId(actorId)
+            .at(publishedAt)
+            .event(LAB_PUBLISHED_EVENT)
+            .build());
+    entityManager.flush();
   }
 }

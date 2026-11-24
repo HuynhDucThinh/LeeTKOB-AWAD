@@ -3,7 +3,7 @@ package com.leetkob.security.oauth2;
 import com.leetkob.entities.User;
 import com.leetkob.enums.OauthProvider;
 import com.leetkob.security.CustomUserDetails;
-import com.leetkob.services.user.OAuthAccountService;
+import com.leetkob.services.OAuthAccountService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;

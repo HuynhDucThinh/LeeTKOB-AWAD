@@ -7,7 +7,7 @@ import com.leetkob.dtos.auth.SignupRequest;
 import com.leetkob.dtos.auth.UserResponse;
 import com.leetkob.security.CustomUserDetails;
 import com.leetkob.security.jwt.CookieUtil;
-import com.leetkob.services.user.AuthService;
+import com.leetkob.services.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
