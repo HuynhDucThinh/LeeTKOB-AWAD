@@ -1,6 +1,7 @@
 package com.leetkob.controllers;
 
 import com.leetkob.dtos.ApiResponse;
+import com.leetkob.dtos.auth.AuthResponse;
 import com.leetkob.dtos.auth.LoginRequest;
 import com.leetkob.dtos.auth.SignupRequest;
 import com.leetkob.dtos.auth.UserResponse;
@@ -29,24 +30,45 @@ public class AuthController {
   private final CookieUtil cookieUtil;
 
   @PostMapping("/signup")
-  public ResponseEntity<ApiResponse<UserResponse>> signup(
+  public ResponseEntity<ApiResponse<AuthResponse>> signup(
       @Valid @RequestBody SignupRequest request) {
     AuthService.AuthResult result = authService.signup(request);
     ResponseCookie cookie = cookieUtil.createAccessTokenCookie(result.token());
+    AuthResponse payload =
+        AuthResponse.builder().accessToken(result.token()).user(result.userResponse()).build();
 
     return ResponseEntity.status(HttpStatus.CREATED)
         .header(HttpHeaders.SET_COOKIE, cookie.toString())
-        .body(ApiResponse.success("User registered successfully", result.userResponse()));
+        .body(ApiResponse.success("User registered successfully", payload));
   }
 
   @PostMapping("/login")
-  public ResponseEntity<ApiResponse<UserResponse>> login(@Valid @RequestBody LoginRequest request) {
+  public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
     AuthService.AuthResult result = authService.login(request);
     ResponseCookie cookie = cookieUtil.createAccessTokenCookie(result.token());
+    AuthResponse payload =
+        AuthResponse.builder().accessToken(result.token()).user(result.userResponse()).build();
 
     return ResponseEntity.ok()
         .header(HttpHeaders.SET_COOKIE, cookie.toString())
-        .body(ApiResponse.success("Login successful", result.userResponse()));
+        .body(ApiResponse.success("Login successful", payload));
+  }
+
+  @PostMapping("/refresh-token")
+  public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(
+      @AuthenticationPrincipal CustomUserDetails userDetails) {
+    if (userDetails == null) {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+          .body(ApiResponse.error("Not authenticated"));
+    }
+    AuthService.AuthResult result = authService.refreshSession(userDetails.getId());
+    ResponseCookie cookie = cookieUtil.createAccessTokenCookie(result.token());
+    AuthResponse payload =
+        AuthResponse.builder().accessToken(result.token()).user(result.userResponse()).build();
+
+    return ResponseEntity.ok()
+        .header(HttpHeaders.SET_COOKIE, cookie.toString())
+        .body(ApiResponse.success("Session refreshed", payload));
   }
 
   @PostMapping("/logout")

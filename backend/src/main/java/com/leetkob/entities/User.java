@@ -40,6 +40,10 @@ public class User {
   @Column(name = "avatar_url")
   private String avatarUrl;
 
+  @Builder.Default
+  @Column(nullable = false, length = 16)
+  private String role = "student";
+
   @CreationTimestamp
   @Column(name = "created_at", nullable = false, updatable = false)
   private OffsetDateTime createdAt;

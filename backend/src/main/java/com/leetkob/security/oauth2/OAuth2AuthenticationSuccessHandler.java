@@ -47,7 +47,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     User user = userDetails.getUser();
 
     // 1. Generate JWT token
-    String token = jwtUtil.generateToken(user.getId(), user.getEmail());
+    String token = jwtUtil.generateToken(user.getId(), user.getEmail(), user.getRole());
 
     // 2. Set HttpOnly JWT cookie
     ResponseCookie cookie = cookieUtil.createAccessTokenCookie(token);

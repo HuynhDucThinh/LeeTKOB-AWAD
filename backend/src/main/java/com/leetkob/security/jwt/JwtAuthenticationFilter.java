@@ -31,9 +31,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     if (token != null && jwtUtil.validateToken(token)) {
       UUID userId = jwtUtil.getUserIdFromToken(token);
       String email = jwtUtil.getEmailFromToken(token);
+      String role = jwtUtil.getRoleFromToken(token);
 
       if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-        User user = User.builder().id(userId).email(email).build();
+        User user = User.builder().id(userId).email(email).role(role).build();
 
         CustomUserDetails userDetails = new CustomUserDetails(user);
 

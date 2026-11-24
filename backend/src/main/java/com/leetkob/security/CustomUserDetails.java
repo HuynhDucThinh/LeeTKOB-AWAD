@@ -89,6 +89,10 @@ public class CustomUserDetails implements UserDetails, OidcUser {
 
   @Override
   public Collection<? extends GrantedAuthority> getAuthorities() {
-    return Collections.singleton(new SimpleGrantedAuthority("ROLE_USER"));
+    String normalizedRole =
+        (user.getRole() == null || user.getRole().isBlank())
+            ? "STUDENT"
+            : user.getRole().trim().toUpperCase();
+    return Collections.singleton(new SimpleGrantedAuthority("ROLE_" + normalizedRole));
   }
 }
