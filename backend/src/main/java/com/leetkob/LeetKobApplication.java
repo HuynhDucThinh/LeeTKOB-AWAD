@@ -3,7 +3,7 @@ package com.leetkob;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@SpringBootApplication(scanBasePackages = {"com.leetkob", "vn.edu.hcmus.leetkob"})
+@SpringBootApplication
 public class LeetKobApplication {
 
   public static void main(String[] args) {
