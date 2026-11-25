@@ -150,3 +150,20 @@
   - Từ chối sửa `ClassRoom` sang `@GeneratedValue(IDENTITY)` vì sẽ xung đột với `DemoAccountSeeder.ensureClass(10/20, ...)`.
   - Từ chối trả `403` khi TA lớp khác truy cập `GET/PUT /v1/labs/{id}` hoặc `POST /v1/labs` cho lớp ngoài — bắt buộc trả `404 not-found` cùng cấu trúc RFC 9457 như tài nguyên không tồn tại để chống rò rỉ thông tin (`T1`).
   - Từ chối xóa `frontend/src/services/mock/` ở PR 1A khi `submissionService.ts` (TV2) và `review/publish/appealService.ts` (PR 1B) vẫn đang cần biên dịch độc lập.
+
+---
+
+## A16 — Triển khai Review Queue (`H1–H3`), Pass Sampling 10% & Appeals (`A1–A3`) (`feat/pa3-review-publish-appeals`)
+
+- **Thành viên thực hiện:** Trà Văn Sỹ (`23120197` — TV1) · **Công cụ AI:** Antigravity.
+- **Observed (Phân tích rủi ro & ràng buộc thực tế khi nối Review Queue, Publish và Appeals):**
+  1. Nếu một bài phúc khảo (`appeal`) đã được TA duyệt `accepted` mà bị gọi lại `PUT /v1/appeals/{id}/decision` lần nữa với `status = "accepted"`, cộng dồn `deductionTenths` lần thứ 2 vào `published_marks` sẽ làm sai lệch điểm công bố của sinh viên.
+  2. Khi sinh viên gửi phúc khảo (`POST /v1/submissions/{id}/appeals`) lên bài nộp của người khác, nếu kiểm tra trạng thái Publish (`409 appeal-before-publish`) trước khi kiểm tra quyền sở hữu bài nộp thì sẽ làm lộ thông tin bài nộp của sinh viên khác có tồn tại hay đã được công bố hay chưa.
+  3. Tại thời điểm hoàn thành PR 1B, `submissionService.ts` và `useSubmissionStream.ts` của TV2 vẫn đang dùng `mockStore` (chưa merge PR 2A), nên nếu xóa thư mục `frontend/src/services/mock/` ngay sẽ làm gãy `tsc -b` của Frontend.
+- **Changed (Quyết định triển khai theo quy trình Tests-first):**
+  - **Commit 1 (`test(backend)`):** Viết trước `ReviewQueueAndAppealsIntegrationTest` kiểm chứng đầy đủ `T1` (`404` giống hệt lab không tồn tại cho TA lớp ngoài), `H2–H3` (`Publish` bị chặn `409 reviews-pending` cho đến khi toàn bộ item `in_queue = TRUE` kể cả `sampled_pass` đều có quyết định, trong khi item `in_queue = FALSE` không chặn), và `A1–A3` (`409 appeal-before-publish`, `404` khi appeal bài SV khác, `409 appeal-already-exists`, `accepted` cập nhật nguyên tử `published_marks` và lưu `decidedBy`/`decidedAt`/`decisionReason`). Xác nhận đỏ 2/2 trước khi cài đặt.
+  - **Commit 2 (`feat(backend)`):** Cài đặt `ReviewQueueSampler` (hỗ trợ seed cố định kèm `ReviewQueueSamplerUnitTest` xác minh tỷ lệ lấy mẫu ~10% cho `pass` và 100% cho `violation`/`unsure`), `ReviewQueueController`/`ReviewQueueServiceImpl`, `AppealController`/`AppealServiceImpl`. Trong `AppealServiceImpl`, kiểm tra sở hữu `submission` (`404`) trước `publicationRepository.existsById` (`409`), và kiểm tra cờ `wasAlreadyAccepted` để tránh cộng trùng `deductionTenths` khi gọi lặp lại. Giữ nguyên 100% 23 Contract Tests của `PublishEndpointContractTest`.
+  - **Commit 3 (`feat(frontend)`):** Bật API thật trong `reviewService.ts`, `publishService.ts`, `appealService.ts` và giữ nguyên chữ ký tham số tùy chọn (`_studentId`) để không phá vỡ các hook/page hiện có.
+- **Rejected (Đã từ chối):**
+  - Từ chối xóa thư mục `frontend/src/services/mock/` trước khi PR 2A của TV2 nối xong `submissionService.ts` để đảm bảo `frontend/ npm run build` luôn xanh khi làm song song.
+  - Từ chối dùng `Math.random()` trực tiếp không thể tiêm seed trong logic lấy mẫu `10% pass`, vì không kiểm thử tất định được trong CI.
