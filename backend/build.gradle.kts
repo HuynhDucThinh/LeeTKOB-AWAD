@@ -82,6 +82,8 @@ springBoot {
 }
 
 tasks.withType<Test> {
+	systemProperty("leetkob.role", System.getProperty("leetkob.role", "api"))
+	systemProperty("leetkob.sandbox.enabled", System.getProperty("leetkob.sandbox.enabled", "false"))
 	useJUnitPlatform {
 		val includeTags = System.getProperty("includeTags")
 		if (!includeTags.isNullOrBlank()) {
