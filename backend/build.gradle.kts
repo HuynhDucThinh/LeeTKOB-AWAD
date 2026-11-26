@@ -82,7 +82,14 @@ springBoot {
 }
 
 tasks.withType<Test> {
-	useJUnitPlatform()
+	useJUnitPlatform {
+		val includeTags = System.getProperty("includeTags")
+		if (!includeTags.isNullOrBlank()) {
+			includeTags(*includeTags.split(",").toTypedArray())
+		} else {
+			excludeTags("sandbox")
+		}
+	}
 	filter {
 		isFailOnNoMatchingTests = true
 	}

@@ -27,3 +27,15 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  oauth2:
+    redirect-uri: ${OAUTH2_REDIRECT_URI:http://localhost:5173/}
+
+leetkob:
+  role: ${LEETKOB_ROLE:all}
+  sandbox:
+    enabled: ${LEETKOB_SANDBOX_ENABLED:false}
+    image: ${SANDBOX_IMAGE:leetkob-sandbox:latest}

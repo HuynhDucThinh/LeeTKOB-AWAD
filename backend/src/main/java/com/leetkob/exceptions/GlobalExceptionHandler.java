@@ -90,7 +90,8 @@ public class GlobalExceptionHandler {
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationErrors(
-      MethodArgumentNotValidException ex) {
+      MethodArgumentNotValidException ex, HttpServletRequest request, HttpServletResponse response)
+      throws IOException {
     Map<String, String> errors = new HashMap<>();
     ex.getBindingResult()
         .getAllErrors()
@@ -100,6 +101,19 @@ public class GlobalExceptionHandler {
               String message = error.getDefaultMessage();
               errors.put(field, message);
             });
+    String uri = request.getRequestURI();
+    if (uri != null && uri.startsWith("/v1/")) {
+      java.util.List<com.leetkob.dtos.publish.FieldErrorItem> fieldErrors =
+          errors.entrySet().stream()
+              .map(
+                  e ->
+                      com.leetkob.dtos.publish.FieldErrorItem.forPointer(
+                          "/" + e.getKey(), e.getValue()))
+              .toList();
+      problemResponseWriter.writeProblem(
+          request, response, ProblemKind.VALIDATION, fieldErrors, uri);
+      return null;
+    }
     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
         .body(ApiResponse.error("Validation failed", errors));
   }
