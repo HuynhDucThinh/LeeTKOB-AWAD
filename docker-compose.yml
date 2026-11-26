@@ -16,5 +16,13 @@ services:
       timeout: 5s
       retries: 10
 
+  sandbox-image:
+    build:
+      context: ./sandbox
+      dockerfile: Dockerfile
+    image: ${SANDBOX_IMAGE:-leetkob-sandbox:latest}
+    entrypoint: ["true"]
+    restart: "no"
+
 volumes:
   leetkob_pgdata:

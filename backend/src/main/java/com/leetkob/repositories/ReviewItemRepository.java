@@ -4,10 +4,15 @@ import com.leetkob.entities.ReviewItem;
 import com.leetkob.entities.ids.ReviewItemId;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ReviewItemRepository extends JpaRepository<ReviewItem, ReviewItemId> {
+
+  @Modifying
+  @Query("DELETE FROM ReviewItem r WHERE r.id.submissionId = :submissionId")
+  void deleteBySubmissionId(@Param("submissionId") int submissionId);
 
   @Query(
       """

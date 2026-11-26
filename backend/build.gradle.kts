@@ -82,7 +82,16 @@ springBoot {
 }
 
 tasks.withType<Test> {
-	useJUnitPlatform()
+	systemProperty("leetkob.role", System.getProperty("leetkob.role", "api"))
+	systemProperty("leetkob.sandbox.enabled", System.getProperty("leetkob.sandbox.enabled", "false"))
+	useJUnitPlatform {
+		val includeTags = System.getProperty("includeTags")
+		if (!includeTags.isNullOrBlank()) {
+			includeTags(*includeTags.split(",").toTypedArray())
+		} else {
+			excludeTags("sandbox")
+		}
+	}
 	filter {
 		isFailOnNoMatchingTests = true
 	}

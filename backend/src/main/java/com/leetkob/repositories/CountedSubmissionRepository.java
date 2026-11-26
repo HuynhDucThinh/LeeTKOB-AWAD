@@ -3,6 +3,7 @@ package com.leetkob.repositories;
 import com.leetkob.entities.CountedSubmission;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CountedSubmissionRepository extends JpaRepository<CountedSubmission, Integer> {
@@ -12,4 +13,6 @@ public interface CountedSubmissionRepository extends JpaRepository<CountedSubmis
   long countByLabId(int labId);
 
   List<CountedSubmission> findByLabId(int labId);
+
+  Optional<CountedSubmission> findByLabIdAndStudentId(int labId, String studentId);
 }

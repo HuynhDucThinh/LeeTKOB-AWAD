@@ -37,3 +37,6 @@ docs/*rubric*.md
 docs/PA#2*
 docs/leetkob-awad-2026-main/
 docs/LeeTKOB-main/
+
+# Giữ lại thư mục tài liệu cá nhân (không ignore)
+!Personal_doc/
