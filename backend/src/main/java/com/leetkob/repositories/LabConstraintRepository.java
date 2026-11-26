@@ -11,4 +11,8 @@ public interface LabConstraintRepository extends JpaRepository<LabConstraint, La
 
   @Query("SELECT c FROM LabConstraint c WHERE c.lab.id = :labId")
   List<LabConstraint> findByLabId(@Param("labId") Integer labId);
+
+  List<LabConstraint> findByIdLabIdOrderByIdConstraintIdAsc(int labId);
+
+  void deleteByIdLabId(int labId);
 }

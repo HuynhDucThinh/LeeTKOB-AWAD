@@ -14,11 +14,13 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
@@ -48,6 +50,34 @@ public class GlobalExceptionHandler {
     }
     return ResponseEntity.status(HttpStatus.NOT_FOUND)
         .body(ApiResponse.error("Resource not found"));
+  }
+
+  @ExceptionHandler(HttpMessageNotReadableException.class)
+  public ResponseEntity<ApiResponse<Void>> handleUnreadableBody(
+      HttpMessageNotReadableException ex, HttpServletRequest request, HttpServletResponse response)
+      throws IOException {
+    String uri = request.getRequestURI();
+    if (uri != null && uri.startsWith("/v1/")) {
+      problemResponseWriter.writeProblem(request, response, ProblemKind.INVALID_JSON, null, uri);
+      return null;
+    }
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        .body(ApiResponse.error("Malformed JSON request body"));
+  }
+
+  @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+  public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(
+      MethodArgumentTypeMismatchException ex,
+      HttpServletRequest request,
+      HttpServletResponse response)
+      throws IOException {
+    String uri = request.getRequestURI();
+    if (uri != null && uri.startsWith("/v1/")) {
+      problemResponseWriter.writeProblem(request, response, ProblemKind.NOT_FOUND, null, "/v1");
+      return null;
+    }
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        .body(ApiResponse.error("Invalid request parameter"));
   }
 
   @ExceptionHandler(ResourceNotFoundException.class)

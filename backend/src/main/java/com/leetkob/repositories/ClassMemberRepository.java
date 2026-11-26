@@ -13,4 +13,10 @@ public interface ClassMemberRepository extends JpaRepository<ClassMember, ClassM
   @Query(
       "SELECT cm.id.classId FROM ClassMember cm WHERE cm.id.userId = :userId ORDER BY cm.id.classId")
   List<Integer> findClassIdsByUserId(@Param("userId") UUID userId);
+
+  List<ClassMember> findByIdClassId(int classId);
+
+  void deleteByIdClassId(int classId);
+
+  boolean existsByIdClassIdAndIdUserId(int classId, UUID userId);
 }
