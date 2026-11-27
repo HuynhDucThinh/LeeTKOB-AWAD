@@ -7,12 +7,15 @@ import com.leetkob.checker.CheckRequest;
 import com.leetkob.checker.ConstraintCheckPipeline;
 import com.leetkob.checker.ConstraintSpec;
 import com.leetkob.checker.ConstraintVerdictResult;
+import com.leetkob.checker.LlmCallRecord;
+import com.leetkob.domain.ReviewQueueSampler;
 import com.leetkob.dtos.submission.JudgeStatusSseEvent;
 import com.leetkob.entities.CountedSubmission;
 import com.leetkob.entities.JudgeJob;
 import com.leetkob.entities.Lab;
 import com.leetkob.entities.LabConstraint;
 import com.leetkob.entities.LabTest;
+import com.leetkob.entities.LlmCallLog;
 import com.leetkob.entities.ReviewItem;
 import com.leetkob.entities.Submission;
 import com.leetkob.entities.User;
@@ -21,6 +24,7 @@ import com.leetkob.repositories.CountedSubmissionRepository;
 import com.leetkob.repositories.JudgeJobRepository;
 import com.leetkob.repositories.LabConstraintRepository;
 import com.leetkob.repositories.LabTestRepository;
+import com.leetkob.repositories.LlmCallLogRepository;
 import com.leetkob.repositories.ReviewItemRepository;
 import com.leetkob.repositories.SubmissionRepository;
 import com.leetkob.sandbox.SandboxRunResult;
@@ -33,10 +37,8 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -56,9 +58,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>Thu thập test cases và chuyển mã nguồn cho {@link SandboxRunner} (C++ Sandbox).
  *   <li>Nếu Sandbox chạy thành công (AC), chuyển mã nguồn cho {@link ConstraintCheckPipeline} để
  *       kiểm tra ràng buộc.
- *   <li>Tổng hợp điểm số, cập nhật {@code submissions}, {@code review_items}, {@code
- *       counted_submissions} và đánh dấu {@code judge_jobs} hoàn tất trong cùng 1 giao dịch nguyên
- *       tử (Atomic Transaction).
+ *   <li>Lưu điểm chức năng (tuyệt đối không tự trừ điểm trước khi TA duyệt — Syllabus Rule), ghi
+ *       {@code llm_call_logs}, áp dụng {@link ReviewQueueSampler} (H1) để lưu {@code review_items},
+ *       đồng bộ {@code counted_submissions} và đánh dấu {@code judge_jobs} hoàn tất trong cùng 1
+ *       giao dịch nguyên tử.
  * </ol>
  */
 @Slf4j
@@ -72,6 +75,8 @@ public class JudgeWorker {
   private final LabConstraintRepository labConstraintRepository;
   private final CountedSubmissionRepository countedSubmissionRepository;
   private final ReviewItemRepository reviewItemRepository;
+  private final LlmCallLogRepository llmCallLogRepository;
+  private final ReviewQueueSampler reviewQueueSampler;
   private final SandboxRunner sandboxRunner;
   private final ConstraintCheckPipeline constraintCheckPipeline;
   private final SubmissionEventBroadcaster submissionEventBroadcaster;
@@ -81,6 +86,9 @@ public class JudgeWorker {
   @Value("${leetkob.role:all}")
   private String leetkobRole;
 
+  @Value("${leetkob.checker.model-off:${MODEL_OFF:false}}")
+  private String modelOffRaw = "false";
+
   @Getter @Setter private long pollingIntervalMs = 250;
 
   @Getter private final AtomicBoolean running = new AtomicBoolean(false);
@@ -89,7 +97,6 @@ public class JudgeWorker {
 
   @PostConstruct
   public void init() {
-    // Tự động khởi chạy vòng lặp ngầm khi role là "worker" hoặc "all" (mặc định cho local dev)
     if ("worker".equalsIgnoreCase(leetkobRole) || "all".equalsIgnoreCase(leetkobRole)) {
       log.info(
           "JudgeWorker background loop enabled for role={}, sandboxRunner={}",
@@ -115,11 +122,8 @@ public class JudgeWorker {
                 log.info("JudgeWorker background loop started with role={}", leetkobRole);
                 while (running.get()) {
                   try {
-                    // Cơ chế Adaptive Polling: Nếu vừa xử lý 1 job thành công, bốc tiếp ngay
-                    // (drain-the-queue)
                     boolean processed = processNextJob();
                     if (!processed) {
-                      // sleep 250ms if queue is empty
                       Thread.sleep(pollingIntervalMs);
                     }
                   } catch (InterruptedException e) {
@@ -163,6 +167,7 @@ public class JudgeWorker {
       int submissionId,
       int labId,
       String labStatementMd,
+      BigDecimal labCostCapUsd,
       java.util.UUID studentId,
       String studentEmail,
       String studentFullName,
@@ -190,14 +195,11 @@ public class JudgeWorker {
       return false;
     }
 
-    // Phát sự kiện SSE "running" ngay sau khi Transaction 1 đã commit xuống DB
     submissionEventBroadcaster.publish(claimed.runningEvent());
 
-    // Chạy Sandbox C++ ngoài giao dịch DB để không chiếm connection pool
     SandboxRunResult sandboxResult =
         sandboxRunner.compileAndRun(claimed.sourceCode(), claimed.testSpecs());
 
-    // Lưu kết quả cuối cùng trong Transaction 2 và phát sự kiện SSE kết thúc
     JudgeStatusSseEvent finalEvent =
         transactionTemplate.execute(status -> completeJob(claimed, sandboxResult));
     submissionEventBroadcaster.publish(finalEvent);
@@ -260,6 +262,7 @@ public class JudgeWorker {
         submission.getId(),
         lab.getId(),
         lab.getStatementMd(),
+        lab.getCostCapUsd(),
         student.getId(),
         student.getEmail(),
         student.getFullName(),
@@ -286,106 +289,26 @@ public class JudgeWorker {
     submission.setMemoryKb(memoryKb);
     submission.setCompileError(compileError);
 
-    // Điểm kiểm thử chức năng ban đầu (thang 100 tenths, tương đương 10.0)
-    int scoreTenths = 0;
-    if (totalTests > 0) {
-      scoreTenths = (passedTests * 100) / totalTests;
-    }
+    // Điểm chức năng thuần từ bộ test (thang 0..100 tenths).
+    // Tuyệt đối không tự trừ điểm theo verdict của checker ở bước này (Syllabus Rule):
+    // điểm trừ chỉ được tính khi TA xác nhận quyết định trong Review Queue.
+    int functionalScoreTenths = totalTests > 0 ? (passedTests * 100) / totalTests : 0;
 
-    // Kiểm tra ràng buộc (Constraint Checking) khi code C++ chạy thành công (AC)
-    List<LabConstraint> constraints = labConstraintRepository.findByLabId(claimed.labId());
-    Map<String, LabConstraint> constraintMap =
-        constraints.stream()
-            .collect(Collectors.toMap(c -> c.getId().getConstraintId(), c -> c, (c1, c2) -> c1));
+    // Đồng bộ CountedSubmission trước để thỏa mãn khóa ngoại review_items -> counted_submissions
+    syncCountedSubmission(
+        submission.getId(),
+        claimed.labId(),
+        claimed.studentId().toString(),
+        judgeStatus,
+        functionalScoreTenths);
 
     if ("AC".equalsIgnoreCase(judgeStatus)) {
-      List<String> piiTokens = new ArrayList<>();
-      if (claimed.studentEmail() != null) {
-        piiTokens.add(claimed.studentEmail());
-      }
-      if (claimed.studentFullName() != null) {
-        piiTokens.add(claimed.studentFullName());
-      }
-
-      List<ConstraintSpec> constraintSpecs =
-          constraints.stream()
-              .map(
-                  c ->
-                      new ConstraintSpec(
-                          c.getId().getConstraintId(),
-                          c.getConstraintType(),
-                          c.getDescription(),
-                          c.getDeductionTenths()))
-              .toList();
-
-      CheckRequest checkRequest =
-          new CheckRequest(
-              "submission-" + submission.getId(),
-              claimed.labStatementMd(),
-              submission.getSourceCode(),
-              piiTokens,
-              constraintSpecs,
-              BigDecimal.valueOf(5.0),
-              false);
-
-      // Gọi qua ConstraintCheckPipeline (hiện tại là MockConstraintCheckPipeline, sau là code của
-      // TV3)
-      CheckPipelineResult pipelineResult = constraintCheckPipeline.check(checkRequest);
-      submission.setStrippedCode(pipelineResult.strippedCode());
-
-      // Áp dụng mức trừ điểm (Deduction) theo đúng cấu hình của TA, không để LLM tự quyết
-      for (ConstraintVerdictResult verdict : pipelineResult.verdicts()) {
-        LabConstraint constraint = constraintMap.get(verdict.constraintId());
-        int deduction = (constraint != null) ? constraint.getDeductionTenths() : 0;
-
-        // Nếu vi phạm (violation): trừ điểm (không bao giờ âm dưới 0)
-        if ("violation".equalsIgnoreCase(verdict.verdict())) {
-          scoreTenths = Math.max(0, scoreTenths - deduction);
-        }
-
-        // Lưu vào review_items (để TA kiểm duyệt)
-        String evidenceJson = "[]";
-        try {
-          evidenceJson = objectMapper.writeValueAsString(verdict.evidence());
-        } catch (JsonProcessingException ignored) {
-        }
-
-        ReviewItem reviewItem =
-            ReviewItem.builder()
-                .id(new ReviewItemId(submission.getId(), verdict.constraintId()))
-                .decision(null) // Chưa duyệt
-                .verdict(verdict.verdict())
-                .source(verdict.source())
-                .evidenceJson(evidenceJson)
-                .guardrailReason(verdict.guardrailReason())
-                .inQueue(true)
-                .sampledPass(false)
-                .build();
-
-        // Đảm bảo CountedSubmission tồn tại để thỏa mãn khóa ngoại review_items ->
-        // counted_submissions
-        syncCountedSubmission(
-            submission.getId(),
-            claimed.labId(),
-            claimed.studentId().toString(),
-            judgeStatus,
-            scoreTenths);
-        reviewItemRepository.save(reviewItem);
-      }
-    } else {
-      // Nếu không AC (CE, WA, TLE, MLE, RE): Đồng bộ CountedSubmission
-      syncCountedSubmission(
-          submission.getId(),
-          claimed.labId(),
-          claimed.studentId().toString(),
-          judgeStatus,
-          scoreTenths);
+      evaluateAndPersistConstraints(claimed, submission);
     }
 
-    // Hoàn tất cập nhật Submission và JudgeJob
     OffsetDateTime now = OffsetDateTime.now();
     submission.setJudgeStatus(judgeStatus);
-    submission.setScoreTenths(scoreTenths);
+    submission.setScoreTenths(functionalScoreTenths);
     submission.setJudgedAt(now);
     submissionRepository.save(submission);
 
@@ -398,7 +321,7 @@ public class JudgeWorker {
         job.getId(),
         submission.getId(),
         judgeStatus,
-        scoreTenths);
+        functionalScoreTenths);
 
     return new JudgeStatusSseEvent(
         submission.getId(),
@@ -409,8 +332,128 @@ public class JudgeWorker {
         execTime,
         memoryKb,
         compileError,
-        scoreTenths,
+        functionalScoreTenths,
         now);
+  }
+
+  private void evaluateAndPersistConstraints(ClaimedJob claimed, Submission submission) {
+    List<LabConstraint> constraints = labConstraintRepository.findByLabId(claimed.labId());
+
+    List<String> piiTokens = new ArrayList<>();
+    if (claimed.studentEmail() != null) {
+      piiTokens.add(claimed.studentEmail());
+    }
+    if (claimed.studentFullName() != null) {
+      piiTokens.add(claimed.studentFullName());
+    }
+
+    List<ConstraintSpec> constraintSpecs =
+        constraints.stream()
+            .map(
+                constraint ->
+                    ConstraintSpec.builder()
+                        .constraintId(constraint.getId().getConstraintId())
+                        .type(constraint.getConstraintType())
+                        .description(constraint.getDescription())
+                        .deductionTenths(constraint.getDeductionTenths())
+                        .build())
+            .toList();
+
+    BigDecimal remainingBudgetUsd = calculateRemainingBudgetUsd(claimed);
+    CheckRequest checkRequest =
+        CheckRequest.builder()
+            .solutionKey("submission-" + submission.getId())
+            .statementMd(claimed.labStatementMd())
+            .sourceCode(submission.getSourceCode())
+            .piiTokensToStrip(piiTokens)
+            .constraints(constraintSpecs)
+            .remainingBudgetUsd(remainingBudgetUsd)
+            .modelOff(isModelOffEnabled())
+            .build();
+
+    CheckPipelineResult pipelineResult = constraintCheckPipeline.check(checkRequest);
+    submission.setStrippedCode(pipelineResult.strippedCode());
+
+    persistLlmCallLogs(submission, pipelineResult.callLogs());
+
+    if (pipelineResult.verdicts() != null) {
+      for (ConstraintVerdictResult verdict : pipelineResult.verdicts()) {
+        String evidenceJson = serializeEvidence(verdict);
+        ReviewQueueSampler.SamplingOutcome sampling =
+            reviewQueueSampler.evaluate(verdict.verdict());
+
+        ReviewItem reviewItem =
+            ReviewItem.builder()
+                .id(
+                    ReviewItemId.builder()
+                        .submissionId(submission.getId())
+                        .constraintId(verdict.constraintId())
+                        .build())
+                .decision(null)
+                .verdict(verdict.verdict())
+                .source(verdict.source())
+                .evidenceJson(evidenceJson)
+                .guardrailReason(verdict.guardrailReason())
+                .inQueue(sampling.inQueue())
+                .sampledPass(sampling.sampledPass())
+                .build();
+        reviewItemRepository.save(reviewItem);
+      }
+    }
+  }
+
+  private boolean isModelOffEnabled() {
+    if (modelOffRaw == null) {
+      return false;
+    }
+    String normalized = modelOffRaw.trim();
+    return "1".equals(normalized) || "true".equalsIgnoreCase(normalized);
+  }
+
+  private BigDecimal calculateRemainingBudgetUsd(ClaimedJob claimed) {
+    BigDecimal costCap =
+        claimed.labCostCapUsd() != null ? claimed.labCostCapUsd() : BigDecimal.ZERO;
+    BigDecimal spent = llmCallLogRepository.sumCostUsdByLabId(claimed.labId());
+    BigDecimal safeSpent = spent != null ? spent : BigDecimal.ZERO;
+    return costCap.subtract(safeSpent).max(BigDecimal.ZERO);
+  }
+
+  private void persistLlmCallLogs(Submission submission, List<LlmCallRecord> callLogs) {
+    if (callLogs == null || callLogs.isEmpty()) {
+      return;
+    }
+    Lab lab = submission.getLab();
+    for (LlmCallRecord callRecord : callLogs) {
+      LlmCallLog logEntity =
+          LlmCallLog.builder()
+              .submission(submission)
+              .lab(lab)
+              .constraintId(callRecord.constraintId())
+              .provider(callRecord.provider())
+              .model(callRecord.model())
+              .providerRequestId(callRecord.providerRequestId())
+              .promptTokens(callRecord.promptTokens())
+              .completionTokens(callRecord.completionTokens())
+              .latencyMs(callRecord.latencyMs())
+              .costUsd(callRecord.costUsd() != null ? callRecord.costUsd() : BigDecimal.ZERO)
+              .sanitizedPrompt(callRecord.sanitizedPrompt())
+              .rawResponse(callRecord.rawResponse())
+              .verdict(callRecord.verdict())
+              .guardrailReason(callRecord.guardrailReason())
+              .build();
+      llmCallLogRepository.save(logEntity);
+    }
+  }
+
+  private String serializeEvidence(ConstraintVerdictResult verdict) {
+    if (verdict.evidence() == null) {
+      return "[]";
+    }
+    try {
+      return objectMapper.writeValueAsString(verdict.evidence());
+    } catch (JsonProcessingException ignore) {
+      return "[]";
+    }
   }
 
   /**
