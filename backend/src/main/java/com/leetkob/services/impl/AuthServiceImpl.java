@@ -6,7 +6,6 @@ import com.leetkob.dtos.auth.UserResponse;
 import com.leetkob.entities.User;
 import com.leetkob.exceptions.EmailAlreadyExistsException;
 import com.leetkob.exceptions.InvalidCredentialsException;
-import com.leetkob.exceptions.OAuthAccountException;
 import com.leetkob.exceptions.ResourceNotFoundException;
 import com.leetkob.mappers.UserMapper;
 import com.leetkob.repositories.ClassMembershipRepository;
@@ -73,8 +72,7 @@ public class AuthServiceImpl implements AuthService {
     User user = userDetails.getUser();
 
     if (user.getPasswordHash() == null) {
-      throw new OAuthAccountException(
-          "Account was created via Google OAuth. Please sign in with Google.");
+      throw new InvalidCredentialsException("Invalid email or password");
     }
 
     List<Integer> classIds = classMembershipRepository.findClassIdsByUserId(user.getId());

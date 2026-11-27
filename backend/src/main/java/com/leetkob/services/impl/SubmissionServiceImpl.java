@@ -7,15 +7,19 @@ import com.leetkob.dtos.submission.SubmissionSummary;
 import com.leetkob.entities.JudgeJob;
 import com.leetkob.entities.Lab;
 import com.leetkob.entities.LabConstraint;
+import com.leetkob.entities.PublishedMark;
 import com.leetkob.entities.ReviewItem;
 import com.leetkob.entities.Submission;
 import com.leetkob.entities.User;
+import com.leetkob.entities.ids.PublishedMarkId;
+import com.leetkob.entities.ids.ReviewItemId;
 import com.leetkob.exceptions.problem.ProblemException;
 import com.leetkob.exceptions.problem.ProblemKind;
 import com.leetkob.repositories.JudgeJobRepository;
 import com.leetkob.repositories.LabConstraintRepository;
 import com.leetkob.repositories.LabRepository;
 import com.leetkob.repositories.PublicationRepository;
+import com.leetkob.repositories.PublishedMarkRepository;
 import com.leetkob.repositories.ReviewItemRepository;
 import com.leetkob.repositories.SubmissionRepository;
 import com.leetkob.repositories.UserRepository;
@@ -24,10 +28,8 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -44,6 +46,7 @@ public class SubmissionServiceImpl implements SubmissionService {
   private final LabRepository labRepository;
   private final UserRepository userRepository;
   private final PublicationRepository publicationRepository;
+  private final PublishedMarkRepository publishedMarkRepository;
   private final LabConstraintRepository labConstraintRepository;
   private final ReviewItemRepository reviewItemRepository;
 
@@ -160,27 +163,24 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     List<PublishedDeductionItem> deductions = null;
     if (published) {
-      // Khi đã Publish: nạp danh sách khấu trừ điểm vi phạm
+      // Khi đã Publish: nạp danh sách khấu trừ điểm vi phạm đã được TA xác nhận
       List<LabConstraint> constraints = labConstraintRepository.findByLabId(sub.getLab().getId());
-      Map<String, LabConstraint> cMap =
-          constraints.stream()
-              .collect(Collectors.toMap(c -> c.getId().getConstraintId(), c -> c, (a, b) -> a));
-
       deductions = new ArrayList<>();
       for (LabConstraint c : constraints) {
         // Tìm review item tương ứng
         Optional<ReviewItem> rOpt =
             reviewItemRepository.findById(
-                new com.leetkob.entities.ids.ReviewItemId(
-                    sub.getId(), c.getId().getConstraintId()));
+                ReviewItemId.builder()
+                    .submissionId(sub.getId())
+                    .constraintId(c.getId().getConstraintId())
+                    .build());
         if (rOpt.isPresent()) {
           ReviewItem r = rOpt.get();
-          if ("violation".equalsIgnoreCase(r.getVerdict())
-              || "violation".equalsIgnoreCase(r.getDecision())) {
+          if ("violation".equalsIgnoreCase(r.getDecision())) {
             deductions.add(
                 PublishedDeductionItem.builder()
                     .constraintId(c.getId().getConstraintId())
-                    .verdict(r.getVerdict())
+                    .verdict(r.getDecision())
                     .deductionTenths(c.getDeductionTenths())
                     .description(c.getDescription())
                     .build());
@@ -188,6 +188,11 @@ public class SubmissionServiceImpl implements SubmissionService {
         }
       }
     }
+
+    Integer publishedScore =
+        published
+            ? resolvePublishedScore(sub.getLab().getId(), sub.getId(), sub.getScoreTenths())
+            : null;
 
     return SubmissionDetail.builder()
         .id(sub.getId())
@@ -199,7 +204,7 @@ public class SubmissionServiceImpl implements SubmissionService {
                 : sub.getStudent().getEmail())
         .judgeStatus(sub.getJudgeStatus())
         .scoreTenths(sub.getScoreTenths())
-        .publishedScoreTenths(published ? sub.getScoreTenths() : null)
+        .publishedScoreTenths(publishedScore)
         .isCounted(true)
         .passedTests(sub.getPassedTests())
         .totalTests(sub.getTotalTests())
@@ -246,7 +251,18 @@ public class SubmissionServiceImpl implements SubmissionService {
     return publicationRepository.existsById(labId);
   }
 
+  private Integer resolvePublishedScore(int labId, int submissionId, Integer fallbackScore) {
+    return publishedMarkRepository
+        .findById(PublishedMarkId.builder().labId(labId).submissionId(submissionId).build())
+        .map(PublishedMark::getScoreTenths)
+        .orElse(fallbackScore);
+  }
+
   private SubmissionSummary toSummary(Submission s, boolean isPublished) {
+    Integer publishedScore =
+        isPublished
+            ? resolvePublishedScore(s.getLab().getId(), s.getId(), s.getScoreTenths())
+            : null;
     return SubmissionSummary.builder()
         .id(s.getId())
         .labId(s.getLab().getId())
@@ -257,7 +273,7 @@ public class SubmissionServiceImpl implements SubmissionService {
                 : s.getStudent().getEmail())
         .judgeStatus(s.getJudgeStatus())
         .scoreTenths(s.getScoreTenths())
-        .publishedScoreTenths(isPublished ? s.getScoreTenths() : null)
+        .publishedScoreTenths(publishedScore)
         .isCounted(true)
         .passedTests(s.getPassedTests())
         .totalTests(s.getTotalTests())

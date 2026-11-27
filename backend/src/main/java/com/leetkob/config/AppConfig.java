@@ -3,6 +3,9 @@ package com.leetkob.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.leetkob.checker.ConstraintCheckPipeline;
+import com.leetkob.checker.MockConstraintCheckPipeline;
+import com.leetkob.domain.ReviewQueueSampler;
 import com.leetkob.security.jwt.JwtUtil;
 import com.leetkob.security.publish.AuthResolver;
 import com.leetkob.security.publish.DemoAuthAdapter;
@@ -22,6 +25,18 @@ public class AppConfig {
   @ConditionalOnMissingBean(Clock.class)
   public Clock systemClock() {
     return Clock.systemUTC();
+  }
+
+  @Bean
+  @ConditionalOnMissingBean(ReviewQueueSampler.class)
+  public ReviewQueueSampler reviewQueueSampler() {
+    return new ReviewQueueSampler();
+  }
+
+  @Bean
+  @ConditionalOnMissingBean(ConstraintCheckPipeline.class)
+  public ConstraintCheckPipeline fallbackConstraintCheckPipeline() {
+    return new MockConstraintCheckPipeline();
   }
 
   @Bean

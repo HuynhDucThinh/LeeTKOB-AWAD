@@ -1,4 +1,8 @@
 # Test-only H2 in-memory configuration so unit and contract tests run without Docker/PostgreSQL.
+server:
+  address: 127.0.0.1
+  port: 0
+
 spring:
   datasource:
     url: jdbc:h2:mem:leetkob;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;LOCK_TIMEOUT=1000
@@ -15,9 +19,19 @@ spring:
       ddl-auto: none
     open-in-view: false
 
+app:
+  cors:
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173
+
 leetkob:
+  role: api
   seed:
     enabled: false
+  checker:
+    model-off: true
+  sandbox:
+    enabled: false
+    image: leetkob-sandbox:latest
 
 # Test-only fixtures, NOT secrets. They let the Spring context start in tests;
 # PublishEndpointContractTest overrides AuthResolver with its own @Primary bean.

@@ -167,3 +167,22 @@
 - **Rejected (Đã từ chối):**
   - Từ chối xóa thư mục `frontend/src/services/mock/` trước khi PR 2A của TV2 nối xong `submissionService.ts` để đảm bảo `frontend/ npm run build` luôn xanh khi làm song song.
   - Từ chối dùng `Math.random()` trực tiếp không thể tiêm seed trong logic lấy mẫu `10% pass`, vì không kiểm thử tất định được trong CI.
+
+
+---
+
+## A17 — Triển khai Stripper + Line Map, Syntax-Aware Hard Rules (`D1`) & Vá Tích hợp `JudgeWorker` (`feat/pa3-3a-hard-rules-and-worker-fix`)
+
+- **Thành viên thực hiện:** Huỳnh Đức Thịnh (`23120199` — TV3) · **Công cụ AI:** Antigravity.
+- **Observed (Các lỗi thiết kế & bug edge-case phát hiện qua tự kiểm toán code):**
+  1. **Bug ẩn danh PII nuốt từ khóa C++:** Bản nháp đầu của bộ ẩn danh PII dùng `Pattern.quote(token)` không có biên từ — nếu sinh viên có tên ngắn như `"An"` hoặc `"in"` (`length >= 2`), bộ lọc biến `int main()` thành `int m[REDACTED]()` và `std::scanf` thành `std::sc[REDACTED]f` trước khi đưa sang LLM.
+  2. **Lặp code quét chuỗi/comment & bug nested namespace `myalgo::std::sort`:** Bản nháp đầu nhân bản toàn bộ logic quét raw string C++11 (`R"delim(...)delim"`), string literal và comment nối dòng `\` giữa `CppCommentPiiStripper` và `CppLexer` (nguy cơ lệch line map), đồng thời `BanListHardRuleChecker` chỉ kiểm tra `tokens.get(i - 2) == "std"` mà không kiểm tra `i - 3 == "::"` nên phạt oan `myalgo::std::sort`, và thiếu nhánh `::qsort` ở global scope.
+  3. **Rủi ro vi phạm Syllabus Rule trong `JudgeWorker` & `SubmissionServiceImpl`:** Sau khi kéo PR #23, phát hiện `JudgeWorker` đang tự động trừ `deduction` vào `submissions.score_tenths` ngay khi checker trả `violation` (chưa qua TA duyệt), gây trừ điểm 2 lần khi TA duyệt ở `ReviewQueueServiceImpl`; đồng thời `JudgeWorker` chưa lưu `llm_call_logs`, chưa gọi `ReviewQueueSampler` (`H1`), và `SubmissionServiceImpl` đọc nhầm `verdict` thay vì `decision` của TA sau Publish.
+- **Changed (Quyết định triển khai & khắc phục):**
+  - **Tầng Lexical & Stripper (`checker.lexical`, `checker.strip`):** Tách `CppSpanScanner` và `CppSourceNormalizer` dùng chung 100% giữa Stripper và Lexer để bảo toàn ánh xạ dòng `1:1`; thêm biên chữ-số `(?<![A-Za-z0-9])...(?![A-Za-z0-9])` trong `StudentPiiRedactor` để che sạch email/MSSV/tên mà không làm hỏng từ khóa C++, kèm `StripperLineMapUnitTest`.
+  - **Tầng Hard Rules (`checker.hard`):** Tách rõ `BanConstraintParser`, `CppLexer`, `CppScopeAnalyzer` và bảng quyết định `QualificationKind` (`STD_NAMESPACE`, `OTHER_NAMESPACE`, `GLOBAL_SCOPE`, `UNQUALIFIED`) trong `BanListHardRuleChecker`; bổ sung `HardRuleTrapsUnitTest` phủ đầy đủ `std::sort`, `using namespace std`, `namespace alias = ::std`, `#define`, `<vector>`, `::qsort`, và mọi bẫy (comment, string, raw string, `<algorithm>` cho `std::swap`, hàm `sort` tự viết, `myalgo::sort`, `myalgo::std::sort`).
+  - **Vá tích hợp `JudgeWorker` & Dọn code thừa:** Gỡ bỏ tự trừ điểm trước TA trong `JudgeWorker` (chỉ lưu điểm chức năng), lưu `llm_call_logs`, tính `remainingBudgetUsd` thật, nối `MODEL_OFF` và `ReviewQueueSampler` 10%, sửa `SubmissionServiceImpl` đọc `published_marks` và `decision = "violation"`, kèm `JudgeWorkerIntegrationPolicyUnitTest` và `scripts/test-pr3a-e2e.mjs`. Xóa bỏ `BadRequestException` (dead code) và cụm boilerplate OAuth2/OIDC không thuộc đề bài.
+- **Rejected (Đã từ chối):**
+  - Từ chối kiểm tra ban-list bằng regex/substring thô trên mã nguồn gốc (vì sẽ phạt oan comment và string literal).
+  - Từ chối để `JudgeWorker` tự trừ `deductionTenths` vào điểm bài nộp trước khi TA xác nhận trong Review Queue (vi phạm *Syllabus Rule* của PA#3).
+  - Từ chối giữ các giá trị mật khẩu mặc định (`:postgres`) trong `src/main/resources/application.yml` hoặc token mẫu trong `backend/.env.example`.

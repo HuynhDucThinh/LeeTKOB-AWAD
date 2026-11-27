@@ -103,16 +103,6 @@ public class GlobalExceptionHandler {
         .body(ApiResponse.error("Invalid email or password"));
   }
 
-  @ExceptionHandler(OAuthAccountException.class)
-  public ResponseEntity<ApiResponse<Void>> handleOAuthAccount(OAuthAccountException ex) {
-    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(ex.getMessage()));
-  }
-
-  @ExceptionHandler(BadRequestException.class)
-  public ResponseEntity<ApiResponse<Void>> handleBadRequest(BadRequestException ex) {
-    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(ex.getMessage()));
-  }
-
   @ExceptionHandler(IllegalArgumentException.class)
   public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(ex.getMessage()));
