@@ -6,6 +6,7 @@ import { execSync } from 'node:child_process';
 
 const SECRET_PATTERNS = [
   { name: 'OpenAI / API Secret Key', regex: /\bsk-[A-Za-z0-9]{20,}\b/ },
+  { name: 'Groq API Secret Key', regex: /\bgsk_[A-Za-z0-9]{20,}\b/ },
   { name: 'GitHub Personal Access Token', regex: /\bgh[pousr]_[A-Za-z0-9]{20,}\b/ },
   { name: 'Google AI / Cloud API Key', regex: /\bAIza[0-9A-Za-z\-_]{35}\b/ },
   { name: 'Private Key Block', regex: /-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----/ },

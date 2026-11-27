@@ -21,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -280,5 +281,107 @@ class GroqLlmClientUnitTest {
     assertEquals("DIVIDE_CONQUER", parsed.get("constraint_id").asText());
     assertEquals("req_audit_77", parsed.get("provider_request_id").asText());
     assertEquals("schema_invalid", parsed.get("guardrail_reason").asText());
+  }
+
+  @Test
+  void retriesTransientIoExceptionAndFailsClosedWhenExhausted() throws Exception {
+    AtomicInteger recoverAttempts = new AtomicInteger(0);
+    AtomicInteger alwaysBrokenAttempts = new AtomicInteger(0);
+
+    HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext(
+        "/flaky-io",
+        exchange -> {
+          int currentAttempt = recoverAttempts.incrementAndGet();
+          exchange.getRequestBody().readAllBytes();
+          if (currentAttempt == 1) {
+            // Abruptly close socket without HTTP status line to trigger transient IOException
+            exchange.close();
+            return;
+          }
+          String okResponse =
+              """
+              {
+                "id": "chatcmpl-recovered",
+                "model": "openai/gpt-oss-120b",
+                "choices": [
+                  {
+                    "index": 0,
+                    "message": {
+                      "role": "assistant",
+                      "content": "{\\"verdicts\\":[{\\"constraintId\\":\\"C_IO\\",\\"verdict\\":\\"pass\\",\\"evidence\\":[]}]}"
+                    }
+                  }
+                ],
+                "usage": {
+                  "prompt_tokens": 200,
+                  "completion_tokens": 50
+                },
+                "x_groq": {
+                  "id": "req_recovered_after_io"
+                }
+              }
+              """;
+          byte[] bytes = okResponse.getBytes(StandardCharsets.UTF_8);
+          exchange.getResponseHeaders().add("Content-Type", "application/json");
+          exchange.sendResponseHeaders(200, bytes.length);
+          try (OutputStream os = exchange.getResponseBody()) {
+            os.write(bytes);
+          }
+        });
+    server.createContext(
+        "/broken-io",
+        exchange -> {
+          alwaysBrokenAttempts.incrementAndGet();
+          exchange.getRequestBody().readAllBytes();
+          exchange.close();
+        });
+    server.start();
+
+    try {
+      int port = server.getAddress().getPort();
+      LlmPromptPayload samplePayload =
+          LlmPromptPayload.builder()
+              .constraintId("C_IO")
+              .systemPrompt("Return JSON")
+              .userPrompt("Check C_IO in JSON")
+              .combinedSanitizedPrompt("JSON")
+              .build();
+
+      GroqLlmClient recoveringClient =
+          GroqLlmClient.builder()
+              .provider("groq")
+              .model("openai/gpt-oss-120b")
+              .apiKey("test-only-dummy-llm-key")
+              .endpointUri(URI.create("http://127.0.0.1:" + port + "/flaky-io"))
+              .maxRetries(2)
+              .initialBackoffMs(10L)
+              .objectMapper(objectMapper)
+              .build();
+
+      LlmRawResponse recovered = recoveringClient.evaluateConstraint(samplePayload);
+      assertEquals(2, recoverAttempts.get());
+      assertEquals("req_recovered_after_io", recovered.providerRequestId());
+      assertEquals("openai/gpt-oss-120b", recovered.model());
+
+      GroqLlmClient exhaustedClient =
+          GroqLlmClient.builder()
+              .provider("groq")
+              .model("openai/gpt-oss-120b")
+              .apiKey("test-only-dummy-llm-key")
+              .endpointUri(URI.create("http://127.0.0.1:" + port + "/broken-io"))
+              .maxRetries(1)
+              .initialBackoffMs(10L)
+              .objectMapper(objectMapper)
+              .build();
+
+      LlmProviderException ex =
+          assertThrows(
+              LlmProviderException.class, () -> exhaustedClient.evaluateConstraint(samplePayload));
+      assertEquals(2, alwaysBrokenAttempts.get());
+      assertEquals(0, ex.getStatusCode());
+    } finally {
+      server.stop(0);
+    }
   }
 }

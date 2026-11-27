@@ -20,9 +20,9 @@ import lombok.Builder;
 
 /**
  * Production {@link LlmClient} using Java 21 {@link HttpClient} against OpenAI-compatible Chat
- * Completions endpoints (defaulting to Groq {@code llama-3.3-70b-versatile}). Enforces strict
- * connect/request timeouts (G3), extracts real provider request IDs and token counts, and never
- * logs API keys.
+ * Completions endpoints (defaulting to Groq {@code openai/gpt-oss-120b}). Enforces strict
+ * connect/request timeouts (G3), retries transient network I/O and HTTP 429/503 errors with bounded
+ * backoff, extracts real provider request IDs and token counts, and never logs API keys.
  */
 public class GroqLlmClient implements LlmClient {
 
@@ -139,6 +139,10 @@ public class GroqLlmClient implements LlmClient {
         throw new LlmProviderException(
             provider, model, 0, latencyMs, "LLM request interrupted", interruptedEx);
       } catch (IOException ioEx) {
+        if (attempt < maxRetries) {
+          sleepBeforeRetry(null, attempt, startNanos, 0, "Interrupted during I/O retry backoff");
+          continue;
+        }
         int latencyMs = elapsedMillis(startNanos);
         throw new LlmProviderException(
             provider, model, 0, latencyMs, "LLM network I/O failure", ioEx);
@@ -150,22 +154,11 @@ public class GroqLlmClient implements LlmClient {
         break;
       }
 
-      long sleepMs = computeRetryDelayMs(response.headers(), attempt);
-      try {
-        Thread.sleep(sleepMs);
-      } catch (InterruptedException interruptedEx) {
-        Thread.currentThread().interrupt();
-        int latencyMs = elapsedMillis(startNanos);
-        throw new LlmProviderException(
-            provider,
-            model,
-            status,
-            latencyMs,
-            "Interrupted during rate-limit backoff",
-            interruptedEx);
-      }
+      sleepBeforeRetry(
+          response.headers(), attempt, startNanos, status, "Interrupted during rate-limit backoff");
     }
 
+    Objects.requireNonNull(response, "HTTP response must be populated after retry loop");
     int latencyMs = elapsedMillis(startNanos);
     int statusCode = response.statusCode();
     if (statusCode < 200 || statusCode >= 300) {
@@ -181,6 +174,19 @@ public class GroqLlmClient implements LlmClient {
     }
 
     return parseCompletionResponse(response.body(), response.headers(), latencyMs);
+  }
+
+  private void sleepBeforeRetry(
+      HttpHeaders headers, int attempt, long startNanos, int statusCode, String interruptMessage) {
+    long sleepMs = computeRetryDelayMs(headers, attempt);
+    try {
+      Thread.sleep(sleepMs);
+    } catch (InterruptedException interruptedEx) {
+      Thread.currentThread().interrupt();
+      int latencyMs = elapsedMillis(startNanos);
+      throw new LlmProviderException(
+          provider, model, statusCode, latencyMs, interruptMessage, interruptedEx);
+    }
   }
 
   private long computeRetryDelayMs(HttpHeaders headers, int attempt) {
