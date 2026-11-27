@@ -1,6 +1,6 @@
 package com.leetkob.security.jwt;
 
-import com.leetkob.entities.User;
+import com.leetkob.entity.User;
 import com.leetkob.security.CustomUserDetails;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

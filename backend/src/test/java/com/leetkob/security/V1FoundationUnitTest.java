@@ -5,9 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.leetkob.config.AppConfig;
-import com.leetkob.entities.User;
-import com.leetkob.exceptions.problem.ProblemException;
-import com.leetkob.exceptions.problem.ProblemKind;
+import com.leetkob.entity.User;
+import com.leetkob.exception.problem.ProblemException;
+import com.leetkob.exception.problem.ProblemKind;
 import com.leetkob.security.jwt.JwtUtil;
 import com.leetkob.security.publish.AuthResolver;
 import com.leetkob.security.publish.Principal;

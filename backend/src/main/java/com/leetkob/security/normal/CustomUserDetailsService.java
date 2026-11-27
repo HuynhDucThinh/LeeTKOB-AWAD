@@ -1,7 +1,7 @@
 package com.leetkob.security.normal;
 
-import com.leetkob.entities.User;
-import com.leetkob.repositories.UserRepository;
+import com.leetkob.entity.User;
+import com.leetkob.repository.UserRepository;
 import com.leetkob.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
