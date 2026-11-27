@@ -29,6 +29,9 @@ leetkob:
     enabled: false
   checker:
     model-off: true
+    model-provider: groq
+    model-name: openai/gpt-oss-120b
+    model-api-key: ""
   sandbox:
     enabled: false
     image: leetkob-sandbox:latest

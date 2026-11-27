@@ -35,6 +35,9 @@ leetkob:
   role: ${LEETKOB_ROLE}
   checker:
     model-off: ${MODEL_OFF:false}
+    model-provider: ${MODEL_PROVIDER:groq}
+    model-name: ${MODEL_NAME:openai/gpt-oss-120b}
+    model-api-key: ${MODEL_API_KEY:}
   sandbox:
     enabled: ${LEETKOB_SANDBOX_ENABLED}
     image: ${SANDBOX_IMAGE}
