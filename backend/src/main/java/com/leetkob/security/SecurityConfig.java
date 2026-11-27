@@ -1,13 +1,9 @@
 package com.leetkob.security;
 
 import com.leetkob.security.jwt.JwtAuthenticationFilter;
-import com.leetkob.security.oauth2.CustomOAuth2UserService;
-import com.leetkob.security.oauth2.OAuth2AuthenticationSuccessHandler;
-import com.leetkob.security.oidc.CustomOidcUserService;
 import java.util.Arrays;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,7 +17,6 @@ import org.springframework.security.config.annotation.web.configurers.HeadersCon
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -35,10 +30,6 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
-  private final CustomOAuth2UserService customOAuth2UserService;
-  private final CustomOidcUserService customOidcUserService;
-  private final OAuth2AuthenticationSuccessHandler oAuth2SuccessHandler;
-  private final ObjectProvider<ClientRegistrationRepository> clientRegistrationRepositoryProvider;
 
   @Value(
       "${app.cors.allowed-origins:${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}}")
@@ -82,28 +73,15 @@ public class SecurityConfig {
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers("/api/auth/**", "/oauth2/**", "/login/oauth2/**", "/v1/**")
+                auth.requestMatchers("/api/auth/**", "/v1/**")
                     .permitAll()
                     .anyRequest()
                     .authenticated())
         .exceptionHandling(
             customizer ->
                 customizer.authenticationEntryPoint(
-                    new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)));
-
-    if (clientRegistrationRepositoryProvider.getIfAvailable() != null) {
-      http.oauth2Login(
-          oauth2 ->
-              oauth2
-                  .userInfoEndpoint(
-                      userInfo ->
-                          userInfo
-                              .userService(customOAuth2UserService)
-                              .oidcUserService(customOidcUserService))
-                  .successHandler(oAuth2SuccessHandler));
-    }
-
-    http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                    new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+        .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
     return http.build();
   }
