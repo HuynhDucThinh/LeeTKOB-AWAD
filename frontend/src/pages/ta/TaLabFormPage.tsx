@@ -16,6 +16,12 @@ const emptyTest = (): Omit<LabTestCase, 'id'> => ({
   isSample: true,
 })
 
+const isBanListDescription = (text: string): boolean => {
+  const normalized = text.trim().toLowerCase()
+  const hasPrefix = normalized.startsWith('do not use') || normalized.startsWith('do not call')
+  return hasPrefix && /`[^`]+`/.test(text)
+}
+
 export function TaLabFormPage() {
   const { labId } = useParams()
   const user = useAuthStore((state) => state.user)
@@ -29,7 +35,7 @@ export function TaLabFormPage() {
   const [statementMd, setStatementMd] = useState('# Problem\n\nDescribe the programming task here.')
   const [tests, setTests] = useState<Array<Omit<LabTestCase, 'id'>>>([emptyTest()])
   const [constraints, setConstraints] = useState<LabConstraint[]>([
-    { constraintId: 'C1', type: 'hard', description: 'Do not use `std::sort`.', deductionTenths: 30 },
+    { constraintId: 'C1', type: 'hard', description: 'Do not call `std::sort`.', deductionTenths: 30 },
   ])
   const [saving, setSaving] = useState(false)
   const [published, setPublished] = useState(false)
@@ -59,8 +65,10 @@ export function TaLabFormPage() {
     }).catch(() => navigate('/not-found'))
   }, [labId, user, navigate])
 
+  const allConstraintsValid = constraints.every((c) => c.description.trim().length > 0)
+
   const save = async () => {
-    if (!title.trim() || tests.length === 0 || !user?.classIds.includes(classId)) return
+    if (!title.trim() || tests.length === 0 || !allConstraintsValid || !user?.classIds.includes(classId)) return
     setSaving(true)
     const payload: CreateLabPayload = {
       classId,
@@ -69,7 +77,11 @@ export function TaLabFormPage() {
       costCapUsd,
       statementMd,
       tests,
-      constraints,
+      constraints: constraints.map((c) => ({
+        ...c,
+        type: isBanListDescription(c.description) ? 'hard' : c.type,
+        description: c.description.trim(),
+      })),
     }
     try {
       const saved = await labService.save(payload, labId ? Number(labId) : undefined)
@@ -82,18 +94,27 @@ export function TaLabFormPage() {
   const updateTest = (index: number, patch: Partial<Omit<LabTestCase, 'id'>>) =>
     setTests((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item))
   const updateConstraint = (index: number, patch: Partial<LabConstraint>) =>
-    setConstraints((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item))
+    setConstraints((items) =>
+      items.map((item, itemIndex) => {
+        if (itemIndex !== index) return item
+        const merged = { ...item, ...patch }
+        if (patch.description !== undefined) {
+          merged.type = isBanListDescription(patch.description) ? 'hard' : 'semantic'
+        }
+        return merged
+      }),
+    )
 
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="page-header"><div><p className="eyebrow">Lab configuration</p><h1>{labId ? 'Edit lab' : 'Create a new lab'}</h1><p>Define the problem, sandbox tests and review constraints.</p></div><button onClick={() => navigate(`/ta/labs${classId ? `?classId=${classId}` : ''}`)} className="secondary-button">Cancel</button></div>
+      <div className="page-header"><div><p className="eyebrow">Lab configuration</p><h1>{labId ? 'Edit lab' : 'Create a new lab'}</h1><p>Define the problem, Docker C++ sandbox tests, and syntax/semantic review constraints.</p></div><button onClick={() => navigate(`/ta/labs${classId ? `?classId=${classId}` : ''}`)} className="secondary-button">Cancel</button></div>
       {published && <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800"><strong className="block">Published lab · read-only configuration</strong><span className="mt-1 block">Published labs cannot be edited. You can still inspect all tests and constraints here.</span></div>}
       <fieldset disabled={published} className="space-y-4 disabled:opacity-75">
-        <Section number="01" title="Basic information" detail="Class ownership, deadline and model budget.">
-          <div className="grid gap-3 md:grid-cols-2"><label className="field-label">Class<select className="input mt-1.5" value={classId} onChange={(event) => setClassId(Number(event.target.value))}>{classes.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name}</option>)}</select></label><label className="field-label">Lab title<input className="input mt-1.5" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Lab 03: Quick Sort" /></label><label className="field-label">Deadline<input className="input mt-1.5" type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} /></label><label className="field-label">LLM cost cap (USD)<input className="input mt-1.5" type="number" min="0" step="0.01" value={costCapUsd} onChange={(event) => setCostCapUsd(Number(event.target.value))} /></label></div>
+        <Section number="01" title="Basic information" detail="Class ownership, deadline and per-lab LLM budget (G4).">
+          <div className="grid gap-3 md:grid-cols-2"><label className="field-label">Class<select className="input mt-1.5" value={classId} onChange={(event) => setClassId(Number(event.target.value))}>{classes.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name}</option>)}</select></label><label className="field-label">Lab title<input className="input mt-1.5" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Lab 03: Merge Sort" /></label><label className="field-label">Deadline<input className="input mt-1.5" type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} /></label><label className="field-label">LLM cost cap (USD)<input className="input mt-1.5" type="number" min="0" step="0.01" value={costCapUsd} onChange={(event) => setCostCapUsd(Number(event.target.value))} /></label></div>
         </Section>
         <Section number="02" title="Problem statement" detail="Markdown is supported in the student-facing statement."><textarea className="input min-h-36 font-mono text-xs" value={statementMd} onChange={(event) => setStatementMd(event.target.value)} /></Section>
-        <Section number="03" title="Test cases" detail="At least one sandbox test is required.">
+        <Section number="03" title="Test cases" detail="At least one C++ sandbox test is required.">
           <div className="space-y-3">{tests.map((test, index) => <div key={index} className="rounded-xl border border-slate-200 p-4">
             <div className="mb-3 flex gap-3"><input className="input py-2" value={test.name} onChange={(event) => updateTest(index, { name: event.target.value })} /><button onClick={() => setTests((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="icon-button text-rose-500" aria-label="Remove test"><Trash2 className="size-4" /></button></div>
             <div className="grid gap-3 md:grid-cols-2"><textarea className="input h-24 font-mono text-xs" value={test.input} onChange={(event) => updateTest(index, { input: event.target.value })} placeholder="Input" /><textarea className="input h-24 font-mono text-xs" value={test.expectedOutput} onChange={(event) => updateTest(index, { expectedOutput: event.target.value })} placeholder="Expected output" /></div>
@@ -101,15 +122,22 @@ export function TaLabFormPage() {
           </div>)}</div>
           <button onClick={() => setTests((items) => [...items, emptyTest()])} className="secondary-button mt-3"><Plus className="size-4" /> Add test case</button>
         </Section>
-        <Section number="04" title="Constraints" detail="Models review semantic rules; they never choose deductions.">
-          <div className="space-y-3">{constraints.map((constraint, index) => <div key={constraint.constraintId} className="rounded-xl border border-lime-200 bg-lime-50/50 p-4">
-            <div className="grid gap-3 md:grid-cols-[120px_1fr_110px_40px]"><select className="input" value={constraint.type} onChange={(event) => updateConstraint(index, { type: event.target.value as LabConstraint['type'] })}><option value="hard">Hard rule</option><option value="semantic">Semantic</option></select><input className="input" value={constraint.description} onChange={(event) => updateConstraint(index, { description: event.target.value })} /><input className="input" type="number" min="0" max="10" step=".1" value={constraint.deductionTenths / 10} onChange={(event) => updateConstraint(index, { deductionTenths: Math.round(Number(event.target.value) * 10) })} /><button onClick={() => setConstraints((items) => items.filter((_, itemIndex) => itemIndex !== index).map((item, nextIndex) => ({ ...item, constraintId: `C${nextIndex + 1}` })))} className="icon-button text-rose-500" aria-label="Remove constraint"><Trash2 className="size-4" /></button></div>
-            <p className="mt-2 text-[10px] text-lime-800">Hard rules begin with “Do not use” or “Do not call”. Deduction is set by the TA.</p>
-          </div>)}</div>
+        <Section number="04" title="Constraints" detail="Ban-lists run deterministic C++ syntax hard rules ($0); semantic rules invoke Groq LLM + G1–G5 guardrails.">
+          <div className="space-y-3">{constraints.map((constraint, index) => {
+            const routedHard = isBanListDescription(constraint.description)
+            return <div key={constraint.constraintId} className="rounded-xl border border-lime-200 bg-lime-50/50 p-4">
+              <div className="grid gap-3 md:grid-cols-[130px_1fr_110px_40px]"><select className="input" value={constraint.type} onChange={(event) => updateConstraint(index, { type: event.target.value as LabConstraint['type'] })}><option value="hard">Hard rule</option><option value="semantic">Semantic</option></select><input className="input" value={constraint.description} onChange={(event) => updateConstraint(index, { description: event.target.value })} placeholder={constraint.type === 'hard' ? 'e.g. Do not call `std::sort` or `qsort`.' : 'e.g. Must implement recursive divide-and-conquer merge sort.'} /><input className="input" type="number" min="0" max="10" step=".1" value={constraint.deductionTenths / 10} onChange={(event) => updateConstraint(index, { deductionTenths: Math.round(Number(event.target.value) * 10) })} /><button onClick={() => setConstraints((items) => items.filter((_, itemIndex) => itemIndex !== index).map((item, nextIndex) => ({ ...item, constraintId: `C${nextIndex + 1}` })))} className="icon-button text-rose-500" aria-label="Remove constraint"><Trash2 className="size-4" /></button></div>
+              <p className="mt-2 text-[10px] text-lime-800">
+                {routedHard
+                  ? 'Engine route: Syntax-Aware C++ Hard Rule · 0 LLM calls ($0) · TA controls deduction (G5)'
+                  : 'Engine route: Groq Semantic LLM (openai/gpt-oss-120b) · Comment/PII stripped · G1–G5 Guardrails'}
+              </p>
+            </div>
+          })}</div>
           <button onClick={() => setConstraints((items) => [...items, { constraintId: `C${items.length + 1}`, type: 'semantic', description: '', deductionTenths: 30 }])} className="secondary-button mt-3"><Plus className="size-4" /> Add constraint</button>
         </Section>
       </fieldset>
-      <div className="mt-4 flex justify-end">{published ? <button type="button" onClick={() => navigate(`/ta/labs/${labId}`)} className="secondary-button">Back to Overview</button> : <button type="button" onClick={() => void save()} disabled={saving || !title.trim() || tests.length === 0} className="primary-button"><Save className="size-4" /> {saving ? 'Saving...' : 'Save Lab'}</button>}</div>
+      <div className="mt-4 flex justify-end">{published ? <button type="button" onClick={() => navigate(`/ta/labs/${labId}`)} className="secondary-button">Back to Overview</button> : <button type="button" onClick={() => void save()} disabled={saving || !title.trim() || tests.length === 0 || !allConstraintsValid} className="primary-button"><Save className="size-4" /> {saving ? 'Saving...' : 'Save Lab'}</button>}</div>
     </div>
   )
 }

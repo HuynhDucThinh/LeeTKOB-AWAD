@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ArrowRight, Check, CheckCircle2, ExternalLink, LockKeyhole, Send, ShieldAlert, Sparkles } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Bot, Check, CheckCircle2, ExternalLink, LockKeyhole, Send, ShieldAlert, Sparkles } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { reviewService } from '@/services/reviewService'
 import { publishService } from '@/services/publishService'
 import { labService } from '@/services/labService'
 import { useAuthStore } from '@/stores/authStore'
 import type { LabDetail } from '@/types/lab'
-import type { ReviewItem, TaDecision } from '@/types/review'
+import type { GuardrailReason, ReviewItem, TaDecision } from '@/types/review'
 import type { ProblemDetail } from '@/types/problem'
 import type { PublicationReceipt } from '@/types/publish'
 import { getProblemError } from '@/lib/apiError'
@@ -18,6 +18,25 @@ import { ProblemBanner } from '@/components/common/ProblemBanner'
 import { cn } from '@/lib/utils'
 
 type Filter = 'all' | 'unreviewed' | 'violation' | 'unsure' | 'pass'
+
+const formatGuardrailReason = (reason: GuardrailReason): string => {
+  switch (reason) {
+    case 'schema_invalid':
+      return 'G1 · Model output failed strict JSON schema validation'
+    case 'evidence_mismatch':
+      return 'G2 · Cited line or snippet did not match stripped C++ source'
+    case 'timeout':
+      return 'G3 · LLM request exceeded time limit'
+    case 'cost_cap_exceeded':
+      return 'G4 · Lab LLM spending cap reached (0 further model calls)'
+    case 'model_off':
+      return 'MODEL_OFF · Model disabled (hard rules only)'
+    case 'provider_error':
+      return 'Provider error · Safely downgraded to unsure for TA review'
+    default:
+      return String(reason ?? '').replace(/_/g, ' ')
+  }
+}
 
 export function TaReviewQueuePage() {
   const { labId } = useParams()
@@ -71,7 +90,7 @@ export function TaReviewQueuePage() {
   return (
     <div>
       <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-lime-300/20 bg-gradient-to-r from-[#10140e] to-[#252e1e] p-5 text-white shadow-xl shadow-slate-950/10 xl:flex-row xl:items-center">
-        <div className="flex-1"><div className="mb-2 flex items-center gap-2"><button onClick={() => navigate(`/ta/labs/${id}`)} className="text-xs text-lime-300 hover:text-white">Lab 01 · Merge Sort</button>{lab?.isPublished && <StatusBadge value="published" label="Published" />}</div><h1 className="text-xl font-semibold">Review Queue & Publish Gate</h1><p className="mt-1 text-xs text-slate-400">Human verification is required before marks become visible.</p></div>
+        <div className="flex-1"><div className="mb-2 flex items-center gap-2"><button onClick={() => navigate(`/ta/labs/${id}`)} className="text-xs text-lime-300 hover:text-white">← {lab?.title ?? `Lab #${id}`}</button>{lab?.isPublished && <StatusBadge value="published" label="Published" />}</div><h1 className="text-xl font-semibold">Review Queue & Publish Gate</h1><p className="mt-1 text-xs text-slate-400">Human verification is required before marks become visible (Syllabus Rule).</p></div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="rounded-2xl bg-white/10 px-5 py-3 backdrop-blur"><span className="text-[10px] uppercase tracking-widest text-lime-200">Progress</span><strong className="ml-3 text-xl">{reviewed}/{items.length}</strong></div>
           <button onClick={() => setPublishOpen(true)} className={cn('inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold shadow-lg', pending === 0 ? 'bg-lime-400 text-black' : 'bg-white/10 text-white ring-1 ring-white/20')}><LockKeyhole className="size-4" /> {lab?.isPublished ? 'Republish Marks' : 'Publish Marks'}</button>
@@ -95,9 +114,10 @@ export function TaReviewQueuePage() {
         </aside>
         {selected && <section className="space-y-5">
           <div className="surface-card">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between"><div><p className="eyebrow">Constraint {selected.constraintId} · {selected.constraintType}</p><h2 className="mt-2 max-w-2xl text-lg font-semibold text-slate-950">{selected.constraintDescription}</h2></div><div className="rounded-2xl bg-rose-50 px-4 py-3 text-right"><span className="block text-[10px] uppercase tracking-wide text-rose-500">TA-defined deduction</span><strong className="text-rose-700">{formatDeduction(selected.deductionTenths)}</strong></div></div>
-            {selected.source === 'hard_rule' && <div className="mt-5 flex items-center gap-2 rounded-xl bg-lime-50 p-3 text-xs font-medium text-lime-700"><ShieldAlert className="size-4" /> Decided by Syntax-Aware Hard Rule · Model not called</div>}
-            {selected.guardrailReason && <div className="mt-5 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-800"><AlertTriangle className="size-4" /> Guardrail returned unsure: {selected.guardrailReason.replace(/_/g, ' ')}</div>}
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between"><div><p className="eyebrow">Constraint {selected.constraintId} · {selected.constraintType}</p><h2 className="mt-2 max-w-2xl text-lg font-semibold text-slate-950">{selected.constraintDescription}</h2></div><div className="rounded-2xl bg-rose-50 px-4 py-3 text-right"><span className="block text-[10px] uppercase tracking-wide text-rose-500">TA-defined deduction (G5)</span><strong className="text-rose-700">{formatDeduction(selected.deductionTenths)}</strong></div></div>
+            {selected.source === 'hard_rule' && <div className="mt-5 flex items-center gap-2 rounded-xl bg-lime-50 p-3 text-xs font-medium text-lime-700"><ShieldAlert className="size-4" /> Decided by Syntax-Aware C++ Hard Rule · Model not called ($0)</div>}
+            {selected.source === 'llm' && <div className="mt-5 flex items-center gap-2 rounded-xl bg-slate-900 p-3 text-xs font-medium text-lime-300"><Bot className="size-4" /> Evaluated by Groq Semantic LLM (openai/gpt-oss-120b) · Comments & PII stripped · G1 Schema & G2 Line Evidence verified</div>}
+            {selected.guardrailReason && <div className="mt-5 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-800"><AlertTriangle className="size-4" /> Guardrail fallback to unsure: {formatGuardrailReason(selected.guardrailReason)}</div>}
             {selected.sampledPass && <div className="mt-5 flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-xs font-medium text-emerald-800"><Sparkles className="size-4" /> Random 10% Pass Audit Sample · Server-selected</div>}
           </div>
           <div className="grid gap-5 lg:grid-cols-[230px_1fr]">
