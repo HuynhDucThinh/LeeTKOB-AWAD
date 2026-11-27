@@ -6,9 +6,11 @@ import com.leetkob.checker.ConstraintVerdictResult;
 import com.leetkob.checker.EvidenceLine;
 import com.leetkob.checker.lexical.CppSourceNormalizer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -17,8 +19,10 @@ import lombok.Builder;
 
 /**
  * Syntax-aware hard-rule evaluator for ban-list constraints (descriptions starting with {@code "Do
- * not use"} or {@code "Do not call"} with backticked targets). Returns {@link Optional#empty()} for
- * semantic constraints so only undecided semantic constraints are sent to the LLM.
+ * not use"} or {@code "Do not call"} with backticked targets). Supports multi-segment C++
+ * namespaces (such as {@code std::ranges::sort}), namespace aliases, {@code using} directives,
+ * member calls, and C++ statement keywords, while returning {@link Optional#empty()} for semantic
+ * constraints.
  */
 @Builder
 @AllArgsConstructor
@@ -26,6 +30,28 @@ public class BanListHardRuleChecker {
 
   private static final Pattern INCLUDE_HEADER_PATTERN =
       Pattern.compile("#\\s*include\\s*([<\"][^>\"]+[>\"])");
+
+  private static final Set<String> CONTROL_FLOW_KEYWORDS =
+      Set.of("for", "while", "do", "goto", "switch");
+
+  private static final Set<String> PRIMITIVE_VARIABLE_TYPE_KEYWORDS =
+      Set.of(
+          "int",
+          "long",
+          "short",
+          "char",
+          "bool",
+          "float",
+          "double",
+          "void",
+          "unsigned",
+          "signed",
+          "size_t",
+          "ptrdiff_t",
+          "int64_t",
+          "uint64_t",
+          "int32_t",
+          "uint32_t");
 
   @Builder.Default private final BanConstraintParser constraintParser = new BanConstraintParser();
 
@@ -87,7 +113,7 @@ public class BanListHardRuleChecker {
             .build());
   }
 
-  private void collectTargetViolations(
+  private static void collectTargetViolations(
       BannedTarget bannedTarget,
       List<CppToken> tokens,
       CppScopeContext scopeContext,
@@ -97,18 +123,17 @@ public class BanListHardRuleChecker {
       case INCLUDE_HEADER ->
           collectHeaderViolations(
               bannedTarget.targetName(), tokens, originalSourceLines, evidenceByLineNumber);
-      case STD_QUALIFIED_SYMBOL ->
-          collectSymbolViolations(
+      case QUALIFIED_SYMBOL ->
+          collectQualifiedSymbolViolations(
+              bannedTarget.namespacePath(),
               bannedTarget.targetName(),
-              true,
               tokens,
               scopeContext,
               originalSourceLines,
               evidenceByLineNumber);
       case UNQUALIFIED_SYMBOL ->
-          collectSymbolViolations(
+          collectUnqualifiedSymbolViolations(
               bannedTarget.targetName(),
-              false,
               tokens,
               scopeContext,
               originalSourceLines,
@@ -132,9 +157,9 @@ public class BanListHardRuleChecker {
     }
   }
 
-  private static void collectSymbolViolations(
+  private static void collectQualifiedSymbolViolations(
+      List<String> targetNamespacePath,
       String bannedSymbol,
-      boolean requireStdOrigin,
       List<CppToken> tokens,
       CppScopeContext scopeContext,
       String[] originalSourceLines,
@@ -149,56 +174,120 @@ public class BanListHardRuleChecker {
         continue;
       }
 
-      QualificationKind qualification =
-          resolveNamespaceQualification(tokens, tokenIndex, scopeContext);
-      if (isBannedSymbolUsage(qualification, bannedSymbol, requireStdOrigin, scopeContext)) {
+      ExplicitQualification explicit = extractExplicitQualification(tokens, tokenIndex);
+      boolean matches;
+      if (!explicit.qualifiers().isEmpty()) {
+        List<String> expanded =
+            scopeContext.expandQualifiers(explicit.qualifiers(), explicit.leadingGlobalScope());
+        matches =
+            expanded.equals(targetNamespacePath)
+                || (!explicit.leadingGlobalScope()
+                    && scopeContext.matchesQualifiedViaUsingNamespace(
+                        expanded, targetNamespacePath));
+      } else if (explicit.leadingGlobalScope()) {
+        matches = false;
+      } else {
+        matches =
+            !scopeContext.isShadowedByUserSymbol(bannedSymbol)
+                && !isPrimitiveTypedVariableName(tokens, tokenIndex)
+                && scopeContext.isImportedSymbol(targetNamespacePath, bannedSymbol);
+      }
+
+      if (matches) {
         recordEvidenceLine(candidateToken.line(), originalSourceLines, evidenceByLineNumber);
       }
     }
   }
 
-  private static boolean isBannedSymbolUsage(
-      QualificationKind qualification,
-      String symbolName,
-      boolean requireStdOrigin,
-      CppScopeContext scopeContext) {
-    return switch (qualification) {
-      case STD_NAMESPACE -> true;
-      case OTHER_NAMESPACE -> false;
-      case GLOBAL_SCOPE -> !requireStdOrigin && !scopeContext.isShadowedByUserFunction(symbolName);
-      case UNQUALIFIED ->
-          !scopeContext.isShadowedByUserFunction(symbolName)
-              && (!requireStdOrigin || scopeContext.isImportedFromStd(symbolName));
-    };
+  private static void collectUnqualifiedSymbolViolations(
+      String bannedSymbol,
+      List<CppToken> tokens,
+      CppScopeContext scopeContext,
+      String[] originalSourceLines,
+      Map<Integer, String> evidenceByLineNumber) {
+    boolean isControlKeyword = CONTROL_FLOW_KEYWORDS.contains(bannedSymbol);
+    int tokenCount = tokens.size();
+    for (int tokenIndex = 0; tokenIndex < tokenCount; tokenIndex++) {
+      CppToken candidateToken = tokens.get(tokenIndex);
+      if (candidateToken.kind() != CppTokenKind.IDENTIFIER
+          || !bannedSymbol.equals(candidateToken.text())) {
+        continue;
+      }
+
+      if (isControlKeyword) {
+        recordEvidenceLine(candidateToken.line(), originalSourceLines, evidenceByLineNumber);
+        continue;
+      }
+
+      if (scopeContext.isDeclarationOrDirectiveToken(tokenIndex)) {
+        continue;
+      }
+
+      if (isMemberAccessTarget(tokens, tokenIndex)) {
+        boolean isMethodInvocation =
+            tokenIndex + 1 < tokenCount
+                && tokens.get(tokenIndex + 1).kind() == CppTokenKind.LEFT_PAREN
+                && !scopeContext.isShadowedByUserFunction(bannedSymbol);
+        if (isMethodInvocation) {
+          recordEvidenceLine(candidateToken.line(), originalSourceLines, evidenceByLineNumber);
+        }
+        continue;
+      }
+
+      ExplicitQualification explicit = extractExplicitQualification(tokens, tokenIndex);
+      boolean matches;
+      if (!explicit.qualifiers().isEmpty()) {
+        List<String> expanded =
+            scopeContext.expandQualifiers(explicit.qualifiers(), explicit.leadingGlobalScope());
+        matches = !expanded.isEmpty() && "std".equals(expanded.get(0));
+      } else {
+        matches =
+            !scopeContext.isShadowedByUserSymbol(bannedSymbol)
+                && !isPrimitiveTypedVariableName(tokens, tokenIndex);
+      }
+
+      if (matches) {
+        recordEvidenceLine(candidateToken.line(), originalSourceLines, evidenceByLineNumber);
+      }
+    }
   }
 
-  private static QualificationKind resolveNamespaceQualification(
-      List<CppToken> tokens, int symbolIndex, CppScopeContext scopeContext) {
+  private static ExplicitQualification extractExplicitQualification(
+      List<CppToken> tokens, int symbolIndex) {
     if (symbolIndex == 0 || tokens.get(symbolIndex - 1).kind() != CppTokenKind.SCOPE_RESOLUTION) {
-      return QualificationKind.UNQUALIFIED;
+      return new ExplicitQualification(List.of(), false);
     }
 
-    if (symbolIndex == 1 || tokens.get(symbolIndex - 2).kind() != CppTokenKind.IDENTIFIER) {
-      return QualificationKind.GLOBAL_SCOPE;
+    List<String> reversedSegments = new ArrayList<>();
+    int cursor = symbolIndex - 1;
+    while (cursor >= 0 && tokens.get(cursor).kind() == CppTokenKind.SCOPE_RESOLUTION) {
+      if (cursor - 1 >= 0 && tokens.get(cursor - 1).kind() == CppTokenKind.IDENTIFIER) {
+        reversedSegments.add(tokens.get(cursor - 1).text());
+        cursor -= 2;
+      } else {
+        Collections.reverse(reversedSegments);
+        return new ExplicitQualification(List.copyOf(reversedSegments), true);
+      }
     }
 
-    int qualifierIndex = symbolIndex - 2;
-    boolean isNestedUnderOuterNamespace =
-        qualifierIndex >= 2
-            && tokens.get(qualifierIndex - 1).kind() == CppTokenKind.SCOPE_RESOLUTION
-            && tokens.get(qualifierIndex - 2).kind() == CppTokenKind.IDENTIFIER;
-    if (isNestedUnderOuterNamespace) {
-      return QualificationKind.OTHER_NAMESPACE;
-    }
-
-    String qualifierName = tokens.get(qualifierIndex).text();
-    return scopeContext.isStdNamespaceOrAlias(qualifierName)
-        ? QualificationKind.STD_NAMESPACE
-        : QualificationKind.OTHER_NAMESPACE;
+    Collections.reverse(reversedSegments);
+    return new ExplicitQualification(List.copyOf(reversedSegments), false);
   }
 
   private static boolean isMemberAccessTarget(List<CppToken> tokens, int tokenIndex) {
     return tokenIndex >= 1 && tokens.get(tokenIndex - 1).kind() == CppTokenKind.MEMBER_ACCESS;
+  }
+
+  private static boolean isPrimitiveTypedVariableName(List<CppToken> tokens, int tokenIndex) {
+    int cursor = tokenIndex - 1;
+    while (cursor >= 0
+        && tokens.get(cursor).kind() == CppTokenKind.OTHER_SYMBOL
+        && ("*".equals(tokens.get(cursor).text()) || "&".equals(tokens.get(cursor).text()))) {
+      cursor--;
+    }
+    return cursor >= 0
+        && tokens.get(cursor).kind() == CppTokenKind.IDENTIFIER
+        && PRIMITIVE_VARIABLE_TYPE_KEYWORDS.contains(tokens.get(cursor).text());
   }
 
   private static void recordEvidenceLine(
@@ -219,10 +308,5 @@ public class BanListHardRuleChecker {
     return evidenceLines;
   }
 
-  private enum QualificationKind {
-    STD_NAMESPACE,
-    OTHER_NAMESPACE,
-    GLOBAL_SCOPE,
-    UNQUALIFIED
-  }
+  private record ExplicitQualification(List<String> qualifiers, boolean leadingGlobalScope) {}
 }

@@ -81,6 +81,27 @@ springBoot {
 	mainClass.set("com.leetkob.LeetKobApplication")
 }
 
+tasks.register<Jar>("checkerCliJar") {
+	group = "build"
+	description = "Builds a standalone executable fat JAR for CheckerCliMain"
+	archiveBaseName.set("checker-cli")
+	archiveVersion.set("")
+	archiveClassifier.set("")
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+	manifest {
+		attributes("Main-Class" to "com.leetkob.checker.cli.CheckerCliMain")
+	}
+	from(sourceSets.main.get().output)
+	dependsOn(configurations.runtimeClasspath)
+	from({
+		configurations.runtimeClasspath.get()
+			.filter { it.name.endsWith(".jar") }
+			.map { zipTree(it) }
+	}) {
+		exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
+	}
+}
+
 tasks.withType<Test> {
 	systemProperty("leetkob.role", System.getProperty("leetkob.role", "api"))
 	systemProperty("leetkob.sandbox.enabled", System.getProperty("leetkob.sandbox.enabled", "false"))

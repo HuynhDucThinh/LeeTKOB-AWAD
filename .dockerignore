@@ -1,0 +1,15 @@
+.git
+.github
+.claude
+.vscode
+.idea
+**/.env
+**/.env.*
+!**/.env.example
+node_modules
+frontend
+eval
+Personal_doc
+docs
+backend/.gradle
+backend/build

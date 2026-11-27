@@ -207,6 +207,8 @@ class GroqLlmClientUnitTest {
               .model("llama-3.3-70b-versatile")
               .apiKey(dummyCredential)
               .endpointUri(URI.create("http://127.0.0.1:" + port + "/rate-limit"))
+              .maxRetries(1)
+              .initialBackoffMs(10L)
               .build();
 
       LlmProviderException ex =
