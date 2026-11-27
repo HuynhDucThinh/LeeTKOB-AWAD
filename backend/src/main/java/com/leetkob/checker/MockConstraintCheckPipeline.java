@@ -1,41 +1,62 @@
 package com.leetkob.checker;
 
+import com.leetkob.checker.hard.BanListHardRuleChecker;
+import com.leetkob.checker.strip.CppCommentPiiStripper;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.stereotype.Component;
+import java.util.Optional;
 
 /**
- * Mock Pipeline dùng tạm thời cho JudgeWorker của Thành viên 2 trong khi đợi Thành viên 3 hoàn
- * thành bộ phân tích cú pháp Hard Rules và LLM Client thật.
- *
- * <p>Cơ chế: Mặc định coi tất cả các constraints được gửi vào là PASS (hợp lệ), không vi phạm, tạo
- * 0 cuộc gọi LLM và 0 chi phí. Khi Thành viên 3 cung cấp bean chính thức mang tên
- * "realConstraintCheckPipeline", Spring Boot sẽ tự động bỏ qua bean này nhờ
- * {@code @ConditionalOnMissingBean}.
+ * Fallback {@link ConstraintCheckPipeline} registered via {@code AppConfig} until the full LLM +
+ * Guardrails pipeline (PR 3B) is wired. Runs the real {@link CppCommentPiiStripper} and {@link
+ * BanListHardRuleChecker} first for all ban-list constraints, and defaults undecided semantic
+ * constraints to {@code pass} with 0 LLM calls.
  */
-@Component
-@ConditionalOnMissingBean(name = "realConstraintCheckPipeline")
 public class MockConstraintCheckPipeline implements ConstraintCheckPipeline {
+
+  private final CppCommentPiiStripper stripper = CppCommentPiiStripper.builder().build();
+  private final BanListHardRuleChecker hardRuleChecker = BanListHardRuleChecker.builder().build();
 
   @Override
   public CheckPipelineResult check(CheckRequest request) {
-    if (request == null || request.constraints() == null) {
-      return new CheckPipelineResult(
-          request != null ? request.sourceCode() : "",
-          Collections.emptyList(),
-          Collections.emptyList());
+    if (request == null) {
+      return CheckPipelineResult.builder()
+          .strippedCode("")
+          .verdicts(Collections.emptyList())
+          .callLogs(Collections.emptyList())
+          .build();
     }
 
-    // Giả lập: Mặc định tất cả các ràng buộc (constraints) đều đạt chuẩn (PASS)
-    List<ConstraintVerdictResult> verdicts =
-        request.constraints().stream()
-            .map(
-                c ->
-                    new ConstraintVerdictResult(
-                        c.constraintId(), "pass", "hard_rule", Collections.emptyList(), null))
-            .toList();
+    String strippedCode = stripper.stripSource(request.sourceCode(), request.piiTokensToStrip());
+    if (request.constraints() == null || request.constraints().isEmpty()) {
+      return CheckPipelineResult.builder()
+          .strippedCode(strippedCode)
+          .verdicts(Collections.emptyList())
+          .callLogs(Collections.emptyList())
+          .build();
+    }
 
-    return new CheckPipelineResult(request.sourceCode(), verdicts, Collections.emptyList());
+    List<ConstraintVerdictResult> verdicts = new ArrayList<>(request.constraints().size());
+    for (ConstraintSpec constraint : request.constraints()) {
+      Optional<ConstraintVerdictResult> hardRuleVerdict =
+          hardRuleChecker.evaluate(constraint, request.sourceCode());
+      verdicts.add(
+          hardRuleVerdict.orElseGet(
+              () ->
+                  ConstraintVerdictResult.builder()
+                      .constraintId(constraint.constraintId())
+                      .verdict(CheckerConstants.VERDICT_PASS)
+                      .source(CheckerConstants.SOURCE_HARD_RULE)
+                      .evidence(Collections.emptyList())
+                      .guardrailReason(null)
+                      .build()));
+    }
+
+    return CheckPipelineResult.builder()
+        .strippedCode(strippedCode)
+        .verdicts(verdicts)
+        .callLogs(Collections.emptyList())
+        .build();
   }
 }
