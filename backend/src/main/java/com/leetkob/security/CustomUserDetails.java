@@ -1,6 +1,6 @@
 package com.leetkob.security;
 
-import com.leetkob.entities.User;
+import com.leetkob.entity.User;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;

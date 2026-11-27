@@ -1,7 +1,7 @@
 package com.leetkob.security;
 
-import com.leetkob.exceptions.problem.ProblemException;
-import com.leetkob.exceptions.problem.ProblemKind;
+import com.leetkob.exception.problem.ProblemException;
+import com.leetkob.exception.problem.ProblemKind;
 import java.util.Set;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;

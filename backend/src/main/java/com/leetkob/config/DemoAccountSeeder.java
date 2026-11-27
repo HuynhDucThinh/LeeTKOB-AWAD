@@ -1,8 +1,8 @@
 package com.leetkob.config;
 
-import com.leetkob.entities.User;
-import com.leetkob.repositories.ClassMembershipRepository;
-import com.leetkob.repositories.UserRepository;
+import com.leetkob.entity.User;
+import com.leetkob.repository.ClassMembershipRepository;
+import com.leetkob.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;

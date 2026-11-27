@@ -1,0 +1,18 @@
+package com.leetkob.repository;
+
+import com.leetkob.entity.LabConstraint;
+import com.leetkob.entity.id.LabConstraintId;
+import java.util.List;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface LabConstraintRepository extends JpaRepository<LabConstraint, LabConstraintId> {
+
+  @Query("SELECT c FROM LabConstraint c WHERE c.lab.id = :labId")
+  List<LabConstraint> findByLabId(@Param("labId") Integer labId);
+
+  List<LabConstraint> findByIdLabIdOrderByIdConstraintIdAsc(int labId);
+
+  void deleteByIdLabId(int labId);
+}
