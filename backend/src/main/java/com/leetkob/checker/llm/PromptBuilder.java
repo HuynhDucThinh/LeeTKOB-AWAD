@@ -42,7 +42,7 @@ public class PromptBuilder {
       }
 
       VERDICT AND EVIDENCE RULES:
-      - "violation": Use ONLY when <student_code> clearly violates <constraint>. You MUST include at least one evidence item with the exact 1-based line number and an exact non-empty code substring copied from that line.
+      - "violation": Use ONLY when <student_code> clearly violates <constraint>. You MUST include 1 to 4 evidence items citing the exact 1-based line numbers and exact non-empty code substrings copied from the specific lines that directly demonstrate the violation (such as the offending loop, statement, allocation, or return line, not closing braces or #include lines).
       - "pass": Use when <student_code> clearly satisfies <constraint>. Return "evidence": [].
       - "unsure": Use when static inspection cannot determine compliance with high confidence. Return "evidence": [].
       """;

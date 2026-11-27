@@ -6,6 +6,7 @@ import com.leetkob.checker.guardrail.ParsedConstraintVerdict;
 import com.leetkob.checker.guardrail.ResponseSchemaValidator;
 import com.leetkob.checker.guardrail.SchemaValidationOutcome;
 import com.leetkob.checker.hard.BanListHardRuleChecker;
+import com.leetkob.checker.lexical.CppSourceNormalizer;
 import com.leetkob.checker.llm.LlmClient;
 import com.leetkob.checker.llm.LlmPromptPayload;
 import com.leetkob.checker.llm.LlmProviderException;
@@ -16,7 +17,9 @@ import com.leetkob.checker.strip.CppCommentPiiStripper;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import lombok.AllArgsConstructor;
@@ -70,6 +73,8 @@ public class DefaultConstraintCheckPipeline implements ConstraintCheckPipeline {
     }
 
     String rawSource = request.sourceCode() == null ? "" : request.sourceCode();
+    String[] originalSourceLines =
+        CppSourceNormalizer.normalizeLineEndings(rawSource).split("\n", -1);
     String strippedCode = stripper.stripSource(rawSource, request.piiTokensToStrip());
 
     List<ConstraintSpec> constraints = request.constraints();
@@ -185,7 +190,9 @@ public class DefaultConstraintCheckPipeline implements ConstraintCheckPipeline {
         continue;
       }
 
-      // 6. Verified LLM Verdict
+      // 6. Verified LLM Verdict (map verified lines back to trimmed original .cpp lines)
+      List<EvidenceLine> mappedOriginalEvidence =
+          mapEvidenceToOriginalLines(evidenceOutcome.verifiedEvidence(), originalSourceLines);
       callLogs.add(
           buildCompletedCallRecord(
               constraint.constraintId(),
@@ -198,7 +205,7 @@ public class DefaultConstraintCheckPipeline implements ConstraintCheckPipeline {
               .constraintId(constraint.constraintId())
               .verdict(parsedVerdict.verdict())
               .source(CheckerConstants.SOURCE_LLM)
-              .evidence(evidenceOutcome.verifiedEvidence())
+              .evidence(mappedOriginalEvidence)
               .guardrailReason(null)
               .build());
     }
@@ -208,6 +215,25 @@ public class DefaultConstraintCheckPipeline implements ConstraintCheckPipeline {
         .verdicts(List.copyOf(verdicts))
         .callLogs(List.copyOf(callLogs))
         .build();
+  }
+
+  private static List<EvidenceLine> mapEvidenceToOriginalLines(
+      List<EvidenceLine> verifiedEvidence, String[] originalSourceLines) {
+    if (verifiedEvidence == null || verifiedEvidence.isEmpty()) {
+      return List.of();
+    }
+    Map<Integer, String> uniqueByLine = new LinkedHashMap<>();
+    for (EvidenceLine item : verifiedEvidence) {
+      int line = item.line();
+      if (line >= 1 && line <= originalSourceLines.length) {
+        uniqueByLine.putIfAbsent(line, originalSourceLines[line - 1].trim());
+      }
+    }
+    List<EvidenceLine> mapped = new ArrayList<>(uniqueByLine.size());
+    for (Map.Entry<Integer, String> entry : uniqueByLine.entrySet()) {
+      mapped.add(EvidenceLine.builder().line(entry.getKey()).text(entry.getValue()).build());
+    }
+    return List.copyOf(mapped);
   }
 
   private static ConstraintVerdictResult guardrailUnsure(String constraintId, String reason) {

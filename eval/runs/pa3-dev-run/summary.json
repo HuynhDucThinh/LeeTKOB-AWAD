@@ -1,0 +1,22 @@
+{
+  "pairs": 102,
+  "passLabels": 65,
+  "violationLabels": 37,
+  "wrongful": 0,
+  "caught": 35,
+  "recall": 0.9459459459459459,
+  "unsure": 4,
+  "unsureRate": 0.0392156862745098,
+  "missing": 0,
+  "thresholds": {
+    "maxWrongful": 0,
+    "minRecall": 0.9,
+    "maxUnsure": 0.2
+  },
+  "pass": true,
+  "wrongfulPairs": [],
+  "missedPairs": [
+    "binary-search/s06 C2",
+    "binary-search/s07 C2"
+  ]
+}

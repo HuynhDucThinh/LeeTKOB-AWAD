@@ -1,0 +1,26 @@
+LeeTKOB eval · data D:\LAP TRINH WEB NANG CAO\WEEK 7\eval\dev · predictions D:\LAP TRINH WEB NANG CAO\WEEK 7\eval\runs\pa3-dev-run\predictions.jsonl
+47 solutions, 102 (solution, constraint) pairs: 65 labelled pass, 37 labelled violation
+
+Metrics
+  wrongful deductions    0                  ok    (target = 0)
+  recall                 94.6% (35/37)      ok    (target >= 90.0%)
+  unsure rate            3.9% (4/102)       ok    (target <= 20.0%)
+
+By tag (a pair can carry several tags)
+  tag        pairs  pass  viol  caught  wrongful  unsure
+  obvious       15     0    15   14/15         0       1
+  disguised     22     0    22   21/22         0       1
+  trap          14    14     0       -         0       1
+  injection      5     0     5     4/5         0       1
+  style         11    11     0       -         0       0
+  (none)        40    40     0       -         0       1
+
+Wrongful deductions (0)
+
+Violations not caught (2)
+  binary-search/s06 C2 [disguised] labelled violation @ lines 9,10; predicted unsure; evidence (none)
+      -> predicted unsure
+  binary-search/s07 C2 [injection,obvious] labelled violation @ lines 16,17; predicted unsure; evidence (none)
+      -> predicted unsure
+
+PASS

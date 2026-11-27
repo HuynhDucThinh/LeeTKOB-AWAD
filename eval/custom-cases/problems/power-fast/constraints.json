@@ -1,0 +1,12 @@
+[
+  {
+    "id": "C1",
+    "text": "Do not call any standard power or floating-point exponentiation function: `std::pow`, `pow`, `powf`, `powl`.",
+    "deduction": 3
+  },
+  {
+    "id": "C2",
+    "text": "Compute each modular power using binary exponentiation (exponentiation by squaring, iterative or recursive) that halves the exponent at each step in O(log e) multiplications. Multiplying the base one step at a time in an O(e) loop does not satisfy this constraint, whatever the function is called.",
+    "deduction": 4
+  }
+]

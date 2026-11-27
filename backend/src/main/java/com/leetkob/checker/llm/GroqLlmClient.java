@@ -20,9 +20,9 @@ import lombok.Builder;
 
 /**
  * Production {@link LlmClient} using Java 21 {@link HttpClient} against OpenAI-compatible Chat
- * Completions endpoints (defaulting to Groq {@code llama-3.3-70b-versatile}). Enforces strict
- * connect/request timeouts (G3), extracts real provider request IDs and token counts, and never
- * logs API keys.
+ * Completions endpoints (defaulting to Groq {@code openai/gpt-oss-120b}). Enforces strict
+ * connect/request timeouts (G3), retries transient network I/O and HTTP 429/503 errors with bounded
+ * backoff, extracts real provider request IDs and token counts, and never logs API keys.
  */
 public class GroqLlmClient implements LlmClient {
 
@@ -36,6 +36,8 @@ public class GroqLlmClient implements LlmClient {
   private static final Duration DEFAULT_CONNECT_TIMEOUT = Duration.ofSeconds(10);
   private static final Duration DEFAULT_REQUEST_TIMEOUT = Duration.ofSeconds(25);
   private static final int DEFAULT_MAX_TOKENS = 2048;
+  private static final int DEFAULT_MAX_RETRIES = 3;
+  private static final long DEFAULT_INITIAL_BACKOFF_MS = 2000L;
 
   private final String provider;
   private final String model;
@@ -43,6 +45,8 @@ public class GroqLlmClient implements LlmClient {
   private final URI endpointUri;
   private final Duration requestTimeout;
   private final int maxTokens;
+  private final int maxRetries;
+  private final long initialBackoffMs;
   private final HttpClient httpClient;
   private final ObjectMapper objectMapper;
 
@@ -55,6 +59,8 @@ public class GroqLlmClient implements LlmClient {
       Duration connectTimeout,
       Duration requestTimeout,
       Integer maxTokens,
+      Integer maxRetries,
+      Long initialBackoffMs,
       HttpClient httpClient,
       ObjectMapper objectMapper) {
     this.provider =
@@ -68,6 +74,9 @@ public class GroqLlmClient implements LlmClient {
         connectTimeout != null ? connectTimeout : DEFAULT_CONNECT_TIMEOUT;
     this.requestTimeout = requestTimeout != null ? requestTimeout : DEFAULT_REQUEST_TIMEOUT;
     this.maxTokens = (maxTokens != null && maxTokens > 0) ? maxTokens : DEFAULT_MAX_TOKENS;
+    this.maxRetries = maxRetries != null ? Math.max(maxRetries, 0) : DEFAULT_MAX_RETRIES;
+    this.initialBackoffMs =
+        initialBackoffMs != null ? Math.max(initialBackoffMs, 10L) : DEFAULT_INITIAL_BACKOFF_MS;
     this.httpClient =
         httpClient != null
             ? httpClient
@@ -110,29 +119,46 @@ public class GroqLlmClient implements LlmClient {
             .build();
 
     long startNanos = System.nanoTime();
-    HttpResponse<String> response;
-    try {
-      response =
-          httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-    } catch (HttpTimeoutException timeoutEx) {
-      int latencyMs = elapsedMillis(startNanos);
-      throw new LlmTimeoutException(
-          provider,
-          model,
-          latencyMs,
-          "LLM request timed out after " + latencyMs + " ms",
-          timeoutEx);
-    } catch (InterruptedException interruptedEx) {
-      Thread.currentThread().interrupt();
-      int latencyMs = elapsedMillis(startNanos);
-      throw new LlmProviderException(
-          provider, model, 0, latencyMs, "LLM request interrupted", interruptedEx);
-    } catch (IOException ioEx) {
-      int latencyMs = elapsedMillis(startNanos);
-      throw new LlmProviderException(
-          provider, model, 0, latencyMs, "LLM network I/O failure", ioEx);
+    HttpResponse<String> response = null;
+    for (int attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        response =
+            httpClient.send(
+                httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+      } catch (HttpTimeoutException timeoutEx) {
+        int latencyMs = elapsedMillis(startNanos);
+        throw new LlmTimeoutException(
+            provider,
+            model,
+            latencyMs,
+            "LLM request timed out after " + latencyMs + " ms",
+            timeoutEx);
+      } catch (InterruptedException interruptedEx) {
+        Thread.currentThread().interrupt();
+        int latencyMs = elapsedMillis(startNanos);
+        throw new LlmProviderException(
+            provider, model, 0, latencyMs, "LLM request interrupted", interruptedEx);
+      } catch (IOException ioEx) {
+        if (attempt < maxRetries) {
+          sleepBeforeRetry(null, attempt, startNanos, 0, "Interrupted during I/O retry backoff");
+          continue;
+        }
+        int latencyMs = elapsedMillis(startNanos);
+        throw new LlmProviderException(
+            provider, model, 0, latencyMs, "LLM network I/O failure", ioEx);
+      }
+
+      int status = response.statusCode();
+      boolean isRetryableRateOrServiceLimit = status == 429 || status == 503;
+      if (!isRetryableRateOrServiceLimit || attempt == maxRetries) {
+        break;
+      }
+
+      sleepBeforeRetry(
+          response.headers(), attempt, startNanos, status, "Interrupted during rate-limit backoff");
     }
 
+    Objects.requireNonNull(response, "HTTP response must be populated after retry loop");
     int latencyMs = elapsedMillis(startNanos);
     int statusCode = response.statusCode();
     if (statusCode < 200 || statusCode >= 300) {
@@ -148,6 +174,37 @@ public class GroqLlmClient implements LlmClient {
     }
 
     return parseCompletionResponse(response.body(), response.headers(), latencyMs);
+  }
+
+  private void sleepBeforeRetry(
+      HttpHeaders headers, int attempt, long startNanos, int statusCode, String interruptMessage) {
+    long sleepMs = computeRetryDelayMs(headers, attempt);
+    try {
+      Thread.sleep(sleepMs);
+    } catch (InterruptedException interruptedEx) {
+      Thread.currentThread().interrupt();
+      int latencyMs = elapsedMillis(startNanos);
+      throw new LlmProviderException(
+          provider, model, statusCode, latencyMs, interruptMessage, interruptedEx);
+    }
+  }
+
+  private long computeRetryDelayMs(HttpHeaders headers, int attempt) {
+    if (headers != null) {
+      String retryAfter = headers.firstValue("retry-after").orElse("").trim();
+      if (!retryAfter.isEmpty()) {
+        try {
+          double seconds = Double.parseDouble(retryAfter);
+          if (seconds > 0) {
+            return Math.min(Math.round(seconds * 1000.0) + 250L, 20_000L);
+          }
+        } catch (NumberFormatException ignore) {
+          // fall back to exponential backoff
+        }
+      }
+    }
+    long exponential = initialBackoffMs * (1L << Math.min(attempt, 4));
+    return Math.min(exponential, 20_000L);
   }
 
   private String extractSafeErrorSummary(String responseBody) {
