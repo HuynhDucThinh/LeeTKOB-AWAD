@@ -42,7 +42,7 @@ docker run --rm --network none --memory=512m --pids-limit=64 -e MODEL_OFF=1 \
 node eval/dev/eval.mjs --data eval/dev --predictions tmp-out/predictions.jsonl
 ```
 
-*(Trên Windows PowerShell, thay `$(pwd)` bằng `${PWD}`).*
+*(Trên Windows PowerShell, thay `$(pwd)` bằng `${PWD}`. Trên Linux, container mặc định chạy non-root `USER 10001:10001`; nếu thư mục `tmp-out` chỉ cấp quyền ghi cho UID host hiện tại, có thể thêm `--user "$(id -u):$(id -g)"`).*
 
 ### Chạy Checker trực tiếp bằng JAR
 

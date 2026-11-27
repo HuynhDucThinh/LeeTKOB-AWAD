@@ -9,7 +9,7 @@
 **LeeTKOB** là nền tảng chấm bài C++ và hỗ trợ trợ giảng (TA) kiểm duyệt ràng buộc cú pháp & thuật toán trước khi công bố điểm chính thức:
 1. Sinh viên nộp bài C++ → đẩy vào hàng đợi bền vững `judge_jobs` (`FOR UPDATE SKIP LOCKED`) → tiến trình `JudgeWorker` biên dịch và chạy test trong **Docker C++ Sandbox cô lập 9 lớp (`M1–M9`)**.
 2. Bài đạt `AC` đi qua **bộ xóa comment + ẩn danh PII bảo toàn số dòng 1-based**, xét **Syntax-Aware Hard Rules** trước (`0` lời gọi LLM cho các lệnh cấm `"Do not use"` / `"Do not call"`), sau đó gọi **Groq `openai/gpt-oss-120b`** kèm **5 hàng rào bảo vệ (`G1–G5`)** cho các ràng buộc ngữ nghĩa (`semantic`).
-3. **Tuân thủ tuyệt đối Syllabus Rule:** Không có bất kỳ kết luận nào của máy tự động trừ điểm sinh viên. Mọi kết luận (`violation`, `unsure`, cùng `10%` mẫu `pass` kiểm định) chỉ đi vào **TA Review Queue**; điểm chính thức và chi tiết trừ điểm luôn ẩn đối với sinh viên cho tới khi TA duyệt hết và bấm **Publish Marks** (xem mục FAQ của Product Owners về ẩn kết quả ràng buộc trước Publish).
+3. **Tuân thủ tuyệt đối Syllabus Rule:** Không có bất kỳ kết luận nào của máy tự động trừ điểm sinh viên. Mọi kết luận (`violation`, `unsure`, cùng `10%` mẫu `pass` kiểm định) chỉ đi vào **TA Review Queue**; trước khi công bố điểm, sinh viên chỉ thấy trạng thái chấm chức năng (`AC`/`WA`/`TLE`/`MLE`/`RE`/`CE`, `testCasesPassed`/`testCasesTotal`) và hoàn toàn không thấy `constraint_verdicts`, `deduction` hay `evidence`, đồng thời bị chặn gửi phúc khảo (`409 appeal-before-publish`) cho tới khi TA phụ trách lớp (`FAQ-01`) duyệt hết hàng đợi (`FAQ-09`) qua thời hạn nộp bài (`FAQ-12`) và bấm **Publish Marks** (theo [FAQ chính thức của nhóm Product Owners — `FAQ-01`, `FAQ-02`, `FAQ-09`, `FAQ-12`](https://github.com/tkob-team/LeeTKOB-FAQ/blob/main/FAQ.md)).
 
 **Tài liệu trọng tâm trong Repository:**
 - Tóm tắt bàn giao `PA#3` (tài khoản mẫu, lệnh CLI/Docker, đường dẫn báo cáo eval): [`PA3.md`](PA3.md)
@@ -28,7 +28,7 @@ Chạy từ thư mục gốc (yêu cầu **JDK 21 LTS** và **Node.js ≥ 22**; 
 npm run lint          # Checkstyle (main + test, maxWarnings = 0)
 npm run format:check  # Spotless Google Java Format (chỉ đọc)
 npm run typecheck     # Biên dịch tĩnh toàn bộ main + test
-npm test              # Toàn bộ 99 Unit Tests & HTTP Contract Tests (H2 PostgreSQL mode, 0 gọi mạng)
+npm test              # Toàn bộ 100 Unit Tests & HTTP Contract Tests (H2 PostgreSQL mode, 0 gọi mạng)
 npm run sec:scan      # Quét lộ lọt bí mật trên toàn bộ lịch sử Git (kết hợp Gitleaks trên CI)
 ```
 
@@ -68,7 +68,7 @@ docker run --rm --network none --memory=512m --pids-limit=64 -e MODEL_OFF=1 `
 node eval/dev/eval.mjs --data eval/dev --predictions tmp-out/predictions.jsonl
 ```
 
-- **Kết quả kiểm chứng `MODEL_OFF=1` trên `eval/dev/` (102 cặp):** **`0` wrongful deductions** (`0/65`, bao gồm `0/14` trên toàn bộ nhóm bẫy `trap`), quyết định chính xác **`55/55` (`100%`)** cặp ban-list, `47/47` cặp semantic trả `unsure`, `eval.mjs` thoát mã `1` (không bao giờ trả `2`).
+- **Kết quả kiểm chứng `MODEL_OFF=1` trên `eval/dev/` (102 cặp):** **`0` wrongful deductions** (`0/65`, bao gồm `0/14` trên toàn bộ nhóm bẫy `trap`), quyết định chính xác **`55/55` (`100%`)** cặp ban-list, `47/47` cặp semantic trả `unsure`, `eval.mjs` thoát mã `1` (không bao giờ trả `2`). *(Lưu ý trên Linux: image mặc định chạy quyền non-root `USER 10001:10001`; nếu thư mục `tmp-out` trên host chỉ cho phép UID hiện tại ghi, thêm `--user "$(id -u):$(id -g)"` vào lệnh `docker run`).*
 
 ### 2.3. Chạy CLI trực tiếp bằng JAR (Offline hoặc gọi Groq thật)
 
