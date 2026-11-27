@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.leetkob.checker.ConstraintCheckPipeline;
-import com.leetkob.checker.MockConstraintCheckPipeline;
+import com.leetkob.checker.DefaultConstraintCheckPipeline;
+import com.leetkob.checker.llm.GroqLlmClient;
+import com.leetkob.checker.llm.LlmClient;
 import com.leetkob.domain.ReviewQueueSampler;
 import com.leetkob.security.jwt.JwtUtil;
 import com.leetkob.security.publish.AuthResolver;
@@ -34,9 +36,40 @@ public class AppConfig {
   }
 
   @Bean
+  @ConditionalOnMissingBean(LlmClient.class)
+  public LlmClient llmClient(
+      @Value("${leetkob.role:all}") String role,
+      @Value("${leetkob.checker.model-off:${MODEL_OFF:false}}") String modelOffRaw,
+      @Value("${leetkob.checker.model-provider:${MODEL_PROVIDER:groq}}") String modelProvider,
+      @Value("${leetkob.checker.model-name:${MODEL_NAME:openai/gpt-oss-120b}}") String modelName,
+      @Value("${leetkob.checker.model-api-key:${MODEL_API_KEY:}}") String modelApiKey,
+      ObjectMapper objectMapper) {
+    boolean workerExecutesChecker = "worker".equalsIgnoreCase(role) || "all".equalsIgnoreCase(role);
+    boolean modelOff = isModelOffEnabled(modelOffRaw);
+    if (workerExecutesChecker && !modelOff && (modelApiKey == null || modelApiKey.isBlank())) {
+      throw new IllegalStateException(
+          "MODEL_API_KEY must be configured when LEETKOB_ROLE=" + role + " and MODEL_OFF is false");
+    }
+    return GroqLlmClient.builder()
+        .provider(modelProvider)
+        .model(modelName)
+        .apiKey(modelApiKey)
+        .objectMapper(objectMapper)
+        .build();
+  }
+
+  @Bean
   @ConditionalOnMissingBean(ConstraintCheckPipeline.class)
-  public ConstraintCheckPipeline fallbackConstraintCheckPipeline() {
-    return new MockConstraintCheckPipeline();
+  public ConstraintCheckPipeline constraintCheckPipeline(LlmClient llmClient) {
+    return DefaultConstraintCheckPipeline.builder().llmClient(llmClient).build();
+  }
+
+  private static boolean isModelOffEnabled(String modelOffRaw) {
+    if (modelOffRaw == null) {
+      return false;
+    }
+    String normalized = modelOffRaw.trim();
+    return "1".equals(normalized) || "true".equalsIgnoreCase(normalized);
   }
 
   @Bean

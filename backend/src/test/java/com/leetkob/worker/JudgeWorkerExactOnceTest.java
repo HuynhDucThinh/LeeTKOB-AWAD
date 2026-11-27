@@ -180,7 +180,7 @@ public class JudgeWorkerExactOnceTest {
   @Test
   void testResubmissionReplacesCountedSubmissionAndPersistsReviewItems() {
     jdbcTemplate.update(
-        "INSERT INTO lab_constraints (lab_id, constraint_id, constraint_type, description, deduction_tenths) VALUES (9901, 'NO_GLOBAL', 'hard', 'No globals', 10)");
+        "INSERT INTO lab_constraints (lab_id, constraint_id, constraint_type, description, deduction_tenths) VALUES (9901, 'NO_GLOBAL', 'hard', 'Do not use `goto`.', 10)");
 
     // Lần 1: nộp bài WA
     SubmissionSummary first =

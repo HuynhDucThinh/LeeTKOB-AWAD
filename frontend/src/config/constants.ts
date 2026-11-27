@@ -1,6 +1,5 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/v1'
 export const AUTH_API_BASE_URL = import.meta.env.VITE_AUTH_API_BASE_URL ?? '/api/auth'
-export const USE_MOCK_API = import.meta.env.VITE_USE_MOCK !== 'false'
 
 export const API_ENDPOINTS = {
   auth: {

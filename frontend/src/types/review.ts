@@ -9,6 +9,7 @@ export type GuardrailReason =
   | 'timeout'
   | 'cost_cap_exceeded'
   | 'model_off'
+  | 'provider_error'
   | null
 
 export interface EvidenceLine {

@@ -5,6 +5,12 @@ export const formatScoreTenths = (value: number): string => `${(value / 10).toFi
 
 export const formatDeduction = (value: number): string => `-${(value / 10).toFixed(1)} pts`
 
+export const formatUsd = (value: number): string => {
+  if (!Number.isFinite(value) || value <= 0) return '$0.00'
+  if (value < 0.01) return `$${value.toFixed(4)}`
+  return `$${value.toFixed(2)}`
+}
+
 export const formatUtcDate = (value: string): string =>
   new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',

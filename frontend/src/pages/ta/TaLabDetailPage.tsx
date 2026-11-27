@@ -8,7 +8,7 @@ import type { LabDetail } from '@/types/lab'
 import type { SubmissionSummary } from '@/types/submission'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { CostCapBar } from '@/components/labs/CostCapBar'
-import { formatScoreTenths, formatUtcDate } from '@/lib/utils'
+import { formatScoreTenths, formatUsd, formatUtcDate } from '@/lib/utils'
 
 export function TaLabDetailPage() {
   const { labId } = useParams()
@@ -24,7 +24,7 @@ export function TaLabDetailPage() {
       <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Kpi icon={<Users />} value={String(lab.submissionCount)} label="Counted submissions" note={`${lab.judgingPendingCount} still judging`} />
         <Kpi icon={<Clock3 />} value={`${lab.unreviewedCount}`} label="Pending TA reviews" note="Human gate status" />
-        <div className="surface-card"><CircleDollarSign className="size-5 text-lime-600" /><p className="mt-5 text-2xl font-semibold">${lab.costSpentUsd.toFixed(2)}</p><p className="mb-4 text-xs text-slate-400">LLM cost usage</p><CostCapBar spent={lab.costSpentUsd} cap={lab.costCapUsd} /></div>
+        <div className="surface-card"><CircleDollarSign className="size-5 text-lime-600" /><p className="mt-5 text-2xl font-semibold">{formatUsd(lab.costSpentUsd)}</p><p className="mb-4 text-xs text-slate-400">LLM cost usage</p><CostCapBar spent={lab.costSpentUsd} cap={lab.costCapUsd} /></div>
         <Kpi icon={<CheckCircle2 />} value={lab.isPublished ? 'Published' : 'Unpublished'} label="Publication status" note={lab.publishedAt ? formatUtcDate(lab.publishedAt) : 'Awaiting completed review'} />
       </div>
       <div className="surface-card overflow-hidden p-0">
