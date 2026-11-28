@@ -1,10 +1,22 @@
-// M9 Attack: Thử đọc các biến môi trường chứa secret hoặc tệp .env từ container.
-// Kỳ vọng: Không có secret nào được truyền vào môi trường sandbox.
+// M9 Attack: Thử đọc secret qua __has_include lúc biên dịch, getenv() và fopen() lúc chạy.
+// Kỳ vọng: Không có secret hay tệp .env nào tồn tại hoặc rò rỉ vào sandbox.
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
 
+#if defined(__has_include)
+#if __has_include("/.env") || __has_include("/work/.env") || __has_include("/app/.env") || \
+    __has_include("/backend/.env")
+#define LEETKOB_COMPILE_TIME_LEAK 1
+#endif
+#endif
+
 int main() {
+#ifdef LEETKOB_COMPILE_TIME_LEAK
+  std::cout << "ATTACK_SUCCEEDED: compile-time __has_include detected secret file\n";
+  return 0;
+#endif
+
   const char* secretKeys[] = {
       "DEMO_AUTH_TOKEN",
       "JWT_SECRET",

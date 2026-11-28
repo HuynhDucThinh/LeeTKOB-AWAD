@@ -4,11 +4,14 @@ import com.leetkob.dto.submission.JudgeStatusSseEvent;
 import com.leetkob.dto.submission.SubmissionDetail;
 import com.leetkob.dto.submission.SubmissionSummary;
 import com.leetkob.dto.submission.SubmitRequest;
+import com.leetkob.exception.problem.ProblemException;
+import com.leetkob.exception.problem.ProblemKind;
 import com.leetkob.security.CustomUserDetails;
 import com.leetkob.security.V1AuthHelper;
 import com.leetkob.service.SubmissionEventBroadcaster;
 import com.leetkob.service.SubmissionService;
 import jakarta.validation.Valid;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -28,6 +31,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RequiredArgsConstructor
 public class SubmissionController {
 
+  private static final int MAX_SOURCE_CODE_BYTES = 512 * 1024;
+
   private final SubmissionService submissionService;
   private final SubmissionEventBroadcaster eventBroadcaster;
   private final V1AuthHelper authHelper;
@@ -43,6 +48,10 @@ public class SubmissionController {
       @Valid @RequestBody SubmitRequest request) {
 
     CustomUserDetails user = authHelper.requireRole("student");
+
+    if (request.getSourceCode().getBytes(StandardCharsets.UTF_8).length > MAX_SOURCE_CODE_BYTES) {
+      throw new ProblemException(ProblemKind.PAYLOAD_TOO_LARGE);
+    }
 
     SubmissionSummary summary =
         submissionService.submit(
