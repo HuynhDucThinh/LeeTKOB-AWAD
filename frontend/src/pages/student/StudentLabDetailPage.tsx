@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Check, CircleDot, FileCode2, LockKeyhole, MessageSquareText, Radio, Send, ShieldCheck, Upload } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Check, CircleDot, FileCode2, LockKeyhole, MessageSquareText, Radio, Send, ShieldCheck, Upload, X } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { labService } from '@/services/labService'
 import { submissionService } from '@/services/submissionService'
@@ -44,6 +44,8 @@ export function StudentLabDetailPage() {
   const [submitting, setSubmitting] = useState(false)
   const [problem, setProblem] = useState<ProblemDetail | null>(null)
   const [uploadError, setUploadError] = useState('')
+  const [toast, setToast] = useState<{ id: number; status: string; passedTests: number; totalTests: number } | null>(null)
+  const pendingToastIdsRef = useRef<Set<number>>(new Set())
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -99,8 +101,23 @@ export function StudentLabDetailPage() {
     )
     if (!isPendingStatus(update.judgeStatus)) {
       submissionService.get(targetId).then(setSubmissionDetail).catch(() => undefined)
+      if (pendingToastIdsRef.current.has(targetId)) {
+        pendingToastIdsRef.current.delete(targetId)
+        setToast({
+          id: targetId,
+          status: update.judgeStatus,
+          passedTests: update.passedTests,
+          totalTests: update.totalTests,
+        })
+      }
     }
   }, [])
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(null), 5000)
+    return () => window.clearTimeout(timer)
+  }, [toast])
 
   const { connected } = useSubmissionStream({
     submissionId: live?.id ?? null,
@@ -126,6 +143,7 @@ export function StudentLabDetailPage() {
     setProblem(null)
     try {
       const queued = await submissionService.submit(lab.id, user.id, code)
+      pendingToastIdsRef.current.add(queued.id)
       setLive(queued)
       setSubmissions((items) => [queued, ...items.filter((item) => item.id !== queued.id)])
       submissionService.get(queued.id).then(setSubmissionDetail).catch(() => undefined)
@@ -153,6 +171,28 @@ export function StudentLabDetailPage() {
   const isFinished = live && !isPendingStatus(live.judgeStatus)
   return (
     <div>
+      {toast && (
+        <div
+          role="status"
+          className={`fixed right-5 top-5 z-50 flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-lg transition ${
+            toast.status === 'AC'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+              : 'border-rose-200 bg-rose-50 text-rose-900'
+          }`}
+        >
+          <span className="text-sm font-semibold">
+            Submission #{toast.id}: {toast.status} ({toast.passedTests}/{toast.totalTests} tests)
+          </span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="rounded-lg p-1 opacity-70 hover:bg-black/5 hover:opacity-100"
+            aria-label="Close notification"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
       <div className="page-header"><div><button onClick={() => navigate('/student/labs')} className="eyebrow">← Back to labs</button><h1>{lab.title}</h1><p>{lab.className} · Due {formatUtcDate(lab.deadline)}</p></div><StatusBadge value={lab.isPublished ? 'published' : 'running'} label={lab.isPublished ? 'Marks published' : 'Open for submissions'} /></div>
       {problem && <div className="mb-4"><ProblemBanner problem={problem} /></div>}
       <div className="grid items-stretch gap-4 xl:grid-cols-[.9fr_1.1fr]">
