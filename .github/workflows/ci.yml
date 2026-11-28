@@ -120,3 +120,22 @@ jobs:
           tar -xzf gitleaks_8.30.1_linux_x64.tar.gz gitleaks
       - name: Scan full Git history with Gitleaks
         run: '"$RUNNER_TEMP/gitleaks" git --redact --no-banner --log-opts="--all" .'
+
+  sandbox-tests:
+    name: sandbox-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+          cache-dependency-path: backend/build.gradle.kts
+      - name: Build sandbox Docker image
+        run: docker build -t leetkob-sandbox:latest ./sandbox
+      - name: Run sandbox security tests (M1-M9)
+        run: ./backend/gradlew -p backend --no-daemon test -DincludeTags=sandbox

@@ -224,3 +224,17 @@
   - Từ chối đọc `labels.jsonl` bên trong `DatasetLoader` hoặc đưa tên bài toán dev set (`sort-merge`, `binary-search`, ...) vào luật cứng hay prompt.
   - Từ chối chạy lại nhiều lần hoặc sửa tay `predictions.jsonl` để xóa 4 ca `unsure` do lỗi mạng/timeout tự nhiên sau khi bổ sung I/O retry — giữ nguyên vẹn bộ kết quả thực tế (`94.6%` recall, `3.9%` unsure, `PASS`) làm bằng chứng trung thực cho cả LLM lẫn Guardrail `G3`/`provider_error`.
 - **Ghi chú minh bạch về quy trình commit trên nhánh `feat/pa3-checker-cli-and-eval` (Criterion 7):** Nhánh PR 3C được thực hiện theo từng đợt công việc thực tế theo thời gian (`5df64d0` thêm `eval/dev` + `eval/custom-cases`; `dfc6532` cài đặt mở rộng hard rules + `CheckerCliMain` + `checker/Dockerfile` + `CheckerCliMainUnitTest` trong cùng commit; `29d6a38` lưu kết quả chạy Groq thật `pa3-dev-run` + `test-pr3c-e2e.mjs`; `f956fa7` đồng bộ giao diện Frontend; sau đó bổ sung commit retry I/O + quét khóa `gsk_` và hồ sơ tự đánh giá `PA#3`). Mọi commit đều giữ nguyên dấu thời gian thực lúc thực hiện và không chỉnh sửa lùi về quá khứ.
+
+---
+
+## A20 — Bổ sung Job `sandbox-tests` (`M1–M9`) vào Đường ống GitHub Actions CI (`ci/add-sandbox-tests`)
+
+- **Thành viên thực hiện:** Lê Trung Thành Đạt (`23120228` — TV2) & Huỳnh Đức Thịnh (`23120199` — TV3) · **Công cụ AI:** Antigravity.
+- **Observed (Đối chiếu mục *Queue and sandbox* & *What we run when marking* của Rubric `PA#3`):**
+  1. Trong `backend/build.gradle.kts`, task `test` mặc định đặt `excludeTags("sandbox")` để cổng `npm test` không đòi hỏi Docker daemon trên môi trường không có Docker; do đó nếu `.github/workflows/ci.yml` chỉ chạy 5 jobs cũ thì 9 bài kiểm thử tấn công `DockerSandboxSecurityTest` (`@Tag("sandbox")`) chưa xuất hiện trong log CI của PR và tag `pa3`.
+  2. Rubric `PA#3` quy định giảng viên đọc trực tiếp kết quả chạy 9 bài tấn công Sandbox từ CI run của tag `pa3` thay vì tự chạy Docker trên máy chấm.
+- **Changed (Quyết định triển khai):**
+  - Bổ sung job độc lập thứ 6 `sandbox-tests` trên `ubuntu-latest` trong `.github/workflows/ci.yml`: build trực tiếp `docker build -t leetkob-sandbox:latest ./sandbox` và thực thi `./backend/gradlew -p backend --no-daemon test -DincludeTags=sandbox` trên mọi PR, nhánh `main` và tag `pa*`.
+  - Đồng bộ lại bằng chứng Tiêu chí 2 trong `SELF_ASSESSMENT_REPORT.md` sau khi cả [PR #28](https://github.com/HuynhDucThinh/LeeTKOB-AWAD/pull/28) (đọc tổng trang nhớ 1 GiB ở `m4_memory_oom.cpp`, kiểm tra `__has_include` ở `m9_no_secrets.cpp`, giới hạn `413` 512 KB) lẫn job `sandbox-tests` đều đã hoàn tất.
+- **Rejected (Đã từ chối):**
+  - Từ chối gộp `-DincludeTags=sandbox` vào lệnh `npm test` mặc định, vì Rubric mục *What we run when marking #2* nêu rõ giảng viên chạy các lệnh kiểm tra trong `README.md` bên trong một container cắt mạng không có Docker daemon.
