@@ -351,4 +351,30 @@ public class SubmissionEndpointContractTest {
     assertEquals(0, afterNode.get("publishedScoreTenths").asInt());
     assertTrue(afterNode.get("publishedDeductions").isArray());
   }
+
+  /** Nộp mã nguồn vượt quá giới hạn 512 KB phải trả về 413 Payload Too Large chuẩn RFC 9457. */
+  @Test
+  void submitOversizedSourceCodeReturns413PayloadTooLarge() throws Exception {
+    String oversizedCode = "a".repeat(512 * 1024 + 1);
+    String payload = "{\"sourceCode\":\"" + oversizedCode + "\"}";
+
+    HttpRequest request =
+        HttpRequest.newBuilder()
+            .uri(URI.create("http://localhost:" + port + "/v1/labs/8801/submissions"))
+            .header("Content-Type", "application/json")
+            .header("Authorization", "Bearer " + student1Token)
+            .POST(HttpRequest.BodyPublishers.ofString(payload))
+            .build();
+
+    HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    assertEquals(413, response.statusCode());
+    assertTrue(
+        response
+            .headers()
+            .firstValue("Content-Type")
+            .orElse("")
+            .contains("application/problem+json"));
+    JsonNode root = objectMapper.readTree(response.body());
+    assertEquals("https://leetkob.example/problems/payload-too-large", root.get("type").asText());
+  }
 }
